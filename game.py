@@ -1,7 +1,6 @@
 from __future__ import print_function
 import numpy as np
 import random
-from pynput import keyboard
 import os
 
 
@@ -177,6 +176,8 @@ class KeyPressHander(object):
 
 
 if __name__ == '__main__':
+    from pynput import keyboard
+
     kph = KeyPressHander()
     with keyboard.Listener(on_press=kph.on_press) as listener:
         listener.join()

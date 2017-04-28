@@ -9,6 +9,7 @@ import utils
 import numpy as np
 import logging
 import copy
+import time
 
 
 Step = namedtuple('Step', ['state', 'action', 'reward', 'done', 'next_state'])
@@ -136,6 +137,9 @@ class DQN(object):
 
         self.net_target = MLP(self.input_size, self.num_actions,
                               conf.hidden_units)
+        if self.cuda:
+            self.net_target.cuda()
+
         self.net_main = copy.deepcopy(self.net_target)
         self.optimizer = torch.optim.Adam(self.net_target.parameters())
 
@@ -189,6 +193,8 @@ class DQN(object):
         state = self.env.reset()
         random_prob = self.start_random
         episode_number = 0
+        last_update_time = time.time()
+
         for step in range(self.max_steps):
 
             random_prob -= ((self.start_random - self.end_random) /
@@ -211,7 +217,9 @@ class DQN(object):
 
             if step % self.update_every == 0 and step > 0:
                 self.net_main = copy.deepcopy(self.net_target)
-                logger.info('Step %d: updating main' % step)
+                logger.info('Step %d: Updating main %f secs since last update',
+                             step, (time.time() - last_update_time))
+                last_update_time = time.time()
 
     def sample_and_train_batch(self):
         self.net_target.zero_grad()

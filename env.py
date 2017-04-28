@@ -2,7 +2,6 @@ import config
 from game import Game2048
 import os
 import numpy as np
-from pynput import keyboard
 
 
 class Env2048(object):
@@ -101,6 +100,8 @@ class KeyPressHander(object):
 
 
 if __name__ == '__main__':
+    from pynput import keyboard
+
     kph = KeyPressHander()
     with keyboard.Listener(on_press=kph.on_press) as listener:
         listener.join()
