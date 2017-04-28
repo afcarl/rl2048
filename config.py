@@ -19,6 +19,7 @@ parser.add_argument('--gamma', type=float, default=0.99)
 parser.add_argument('--update_every', type=int, default=1000)
 parser.add_argument('--validation_episodes', type=int, default=10)
 parser.add_argument('--validate_every', type=int, default=5000)
+parser.add_argument('--train_every', type=int, default=16)
 parser.add_argument('--episode_step_limit', type=int, default=100)
 
 
