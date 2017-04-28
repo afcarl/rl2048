@@ -19,6 +19,7 @@ class Env2048(object):
     def reset(self):
         self.game.reset()
         self.done = False
+        self.total_reward = 0
 
         return self.game.board.flatten()
 
@@ -51,6 +52,7 @@ class Env2048(object):
             reward = 0
 
         self.done = self.game.done
+        self.total_reward += reward
 
         if self.done:
             return self.empty_state.flatten(), reward, self.game.done
