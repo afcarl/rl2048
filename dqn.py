@@ -242,5 +242,4 @@ class DQN(object):
 dqn = DQN()
 
 dqn.pretrain()
-dqn.sample_and_train_batch()
 dqn.train()
