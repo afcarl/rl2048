@@ -2,8 +2,11 @@ import torch
 from torch.autograd import Variable
 
 
-def float_variable(shape, cuda=False):
-    x = torch.FloatTensor(*shape)
+def variable(shape, cuda=False, type_='float'):
+    if type_ == 'float':
+        x = torch.FloatTensor(*shape)
+    elif type_ == 'long':
+        x = torch.LongTensor(*shape)
     x = Variable(x)
     if cuda:
         x = x.cuda()

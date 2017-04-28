@@ -25,7 +25,8 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-# add ch to logger
+def action_select(q, a):
+    return q.gather(1, a.view(-1, 1))[:, 0]
 
 
 class MLP(nn.Module):
@@ -121,16 +122,24 @@ class DQN(object):
         self.end_random = conf.end_random
         self.random_anneal_steps = conf.random_anneal_steps
         self.gamma = conf.gamma
+        self.update_every = conf.update_every
 
         self.exp_buffer = ExperineReplayBuffer()
-        self.state_input = utils.float_variable((self.batch_size,
-                                                self.input_size),
-                                                cuda=self.cuda)
+        self.state_input = utils.variable((self.batch_size, self.input_size),
+                                          cuda=self.cuda, type_='float')
         self.state_input.data.zero_()
+
+        self.y_target = utils.variable((self.batch_size, ), cuda=self.cuda,
+                                       type_='float')
+        self.action_input = utils.variable((self.batch_size, ), cuda=self.cuda,
+                                           type_='long')
 
         self.net_target = MLP(self.input_size, self.num_actions,
                               conf.hidden_units)
         self.net_main = copy.deepcopy(self.net_target)
+        self.optimizer = torch.optim.Adam(self.net_target.parameters())
+
+        self.criterion = nn.MSELoss()
 
         logger.info('DQN Initialized')
 
@@ -168,17 +177,19 @@ class DQN(object):
                 state = self.env.reset()
         logger.info('Pretraining done')
 
-    def predict_main_batch(self, states):
-        self.state_input.data.copy_(torch.Tensor(states.astype(np.float)))
-        q_values = self.net_main(self.state_input)
+    def predict_main_batch(self, states_var):
+        q_values = self.net_main(states_var)
 
-        return torch.max(q_values, dim=1).cpu().numpy()
+        values, _ = torch.max(q_values, dim=1)
+        values = values[:, 0]
+        return values.data.cpu().numpy()
 
     def train(self):
 
         state = self.env.reset()
         random_prob = self.start_random
-        for i in range(self.max_steps):
+        episode_number = 0
+        for step in range(self.max_steps):
 
             random_prob -= ((self.start_random - self.end_random) /
                             self.random_anneal_steps)
@@ -188,12 +199,44 @@ class DQN(object):
             next_state, reward, done = self.env.execute(action)
             self.exp_buffer.add(state, action, reward, done, next_state)
 
+            batch_loss = self.sample_and_train_batch()
+
+            if self.env.done:
+                episode_number += 1
+                max_block = np.max(self.env.game.board)
+                logger.info('Episode %d: Max block = %d Total Reward = %d '
+                            'loss = %f', episode_number, max_block,
+                            self.env.total_reward, batch_loss)
+                self.env.reset()
+
+            if step % self.update_every == 0 and step > 0:
+                self.net_main = copy.deepcopy(self.net_target)
+                logger.info('Step %d: updating main' % step)
+
     def sample_and_train_batch(self):
+        self.net_target.zero_grad()
+
         results = self.exp_buffer.sample(self.batch_size)
         states, actions, rewards, done, next_states = results
-        q_hat_max = self.predict_main_batch(states)
+        states = torch.Tensor(states.astype(np.float))
+        actions = torch.LongTensor(actions)
+        self.state_input.data.copy_(states)
+        self.action_input.data.copy_(actions)
 
-        y = np.where(done, rewards, rewards + self.gamma*q_hat_max)
+        q_main_max = self.predict_main_batch(self.state_input)
+
+        y = np.where(done, rewards, rewards + self.gamma*q_main_max)
+        self.y_target.data.copy_(torch.Tensor(y))
+
+        q_s = self.net_target(self.state_input)
+        q_s_a = action_select(q_s, self.action_input)
+
+        loss = self.criterion(q_s_a, self.y_target)
+        loss.backward()
+
+        self.optimizer.step()
+
+        return loss.data[0]
 
 
 dqn = DQN()
