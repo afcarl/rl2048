@@ -112,7 +112,6 @@ class DQN(object):
         conf = config.get_config()
 
         self.pretraining_steps = conf.pretraining_steps
-        self.env = Env2048()
         self.num_actions = len(conf.action_map)
         self.hidden_units = conf.hidden_units
         self.input_size = 16
@@ -124,6 +123,9 @@ class DQN(object):
         self.random_anneal_steps = conf.random_anneal_steps
         self.gamma = conf.gamma
         self.update_every = conf.update_every
+        self.validate_every = conf.validate_every
+        self.validation_episodes = conf.validation_episodes
+        self.episode_step_limit = conf.episode_step_limit
 
         self.exp_buffer = ExperineReplayBuffer()
         self.state_input = utils.variable((self.batch_size, self.input_size),
@@ -156,29 +158,36 @@ class DQN(object):
         q_first = self.net_target(self.state_input)[0]
         return np.argmax(q_first)
 
-    def epsilon_greedy_action(self, state, epsilon):
+    def predict_main_single(self, state):
+
+        self.state_input.data[0, :] = torch.Tensor(state.astype(np.float))
+        q_first = self.net_main(self.state_input)[0]
+        return np.argmax(q_first)
+
+    def epsilon_greedy_main_action(self, state, epsilon):
 
         num = random.uniform(0, epsilon)
 
         if num < epsilon:
             return self.random_action()
         else:
-            return self.predict_target_single(state)
+            return self.predict_main_single(state)
 
     def pretrain(self):
 
         logger.info('Pretraining started')
-        state = self.env.reset()
+        env_pretrain = Env2048(self.episode_step_limit)
+        state = env_pretrain.reset()
 
         for i in range(self.pretraining_steps):
             action = self.random_action()
-            new_state, reward, done = self.env.execute(action)
+            new_state, reward, done = env_pretrain.execute(action)
 
             self.exp_buffer.add(state, action, reward, done, new_state)
             state = new_state
 
-            if self.env.done:
-                state = self.env.reset()
+            if env_pretrain.done:
+                state = env_pretrain.reset()
         logger.info('Pretraining done')
 
     def predict_main_batch(self, states_var):
@@ -190,36 +199,44 @@ class DQN(object):
 
     def train(self):
 
-        state = self.env.reset()
+        env_train = Env2048(self.episode_step_limit)
+
+        state = env_train.reset()
         random_prob = self.start_random
         episode_number = 0
         last_update_time = time.time()
+        env_train = Env2048(self.episode_step_limit)
 
         for step in range(self.max_steps):
 
             random_prob -= ((self.start_random - self.end_random) /
                             self.random_anneal_steps)
             random_prob = max(random_prob, self.end_random)
-            action = self.epsilon_greedy_action(state, random_prob)
+            action = self.epsilon_greedy_main_action(state, random_prob)
 
-            next_state, reward, done = self.env.execute(action)
+            next_state, reward, done = env_train.execute(action)
             self.exp_buffer.add(state, action, reward, done, next_state)
 
             batch_loss = self.sample_and_train_batch()
 
-            if self.env.done:
+            if env_train.done:
                 episode_number += 1
-                max_block = np.max(self.env.game.board)
+                max_block = np.max(env_train.game.board)
                 logger.info('Episode %d: Max block = %d Total Reward = %d '
                             'loss = %f', episode_number, max_block,
-                            self.env.total_reward, batch_loss)
-                self.env.reset()
+                            env_train.total_reward, batch_loss)
+                env_train.reset()
 
             if step % self.update_every == 0 and step > 0:
                 self.net_main = copy.deepcopy(self.net_target)
                 logger.info('Step %d: Updating main %f secs since last update',
-                             step, (time.time() - last_update_time))
+                            step, (time.time() - last_update_time))
                 last_update_time = time.time()
+
+            if step % self.validate_every == 0 and step > 0:
+                blocks = self.validate(self.validation_episodes)
+                logger.info('Validation: max blocks = %d, avg block = %d',
+                            np.max(blocks), np.average(blocks))
 
     def sample_and_train_batch(self):
         self.net_target.zero_grad()
@@ -245,6 +262,20 @@ class DQN(object):
         self.optimizer.step()
 
         return loss.data[0]
+
+    def validate(self, steps):
+
+        env = Env2048(self.episode_step_limit)
+        blocks = []
+        for i in range(steps):
+            state = env.reset()
+            while not env.done:
+                action = self.predict_target_single(state)
+                state, _, _ = env.execute(action)
+
+            blocks.append(np.max(env.game.board))
+
+        return np.array(blocks)
 
 
 dqn = DQN()

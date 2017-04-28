@@ -6,12 +6,13 @@ import numpy as np
 
 class Env2048(object):
 
-    def __init__(self):
+    def __init__(self, step_limit=np.inf):
 
         conf = config.get_config()
         self.game = Game2048()
         self.action_map = conf.action_map
         self.empty_state = np.zeros(16, dtype=np.int).flatten()
+        self.step_limit = step_limit
 
         self.reset()
 
@@ -19,6 +20,7 @@ class Env2048(object):
         self.game.reset()
         self.done = False
         self.total_reward = 0
+        self.steps = 0
 
         return self.game.board.flatten()
 
@@ -52,8 +54,10 @@ class Env2048(object):
 
         self.done = self.game.done
         self.total_reward += reward
+        self.steps += 1
 
-        if self.done:
+        if self.done or self.steps > self.step_limit:
+            self.done = True
             return self.empty_state.flatten(), reward, self.game.done
         else:
             return new_baord.flatten(), reward, self.game.done
