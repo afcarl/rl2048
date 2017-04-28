@@ -62,10 +62,23 @@ def board_down(board):
     return np.rot90(board, 1), score
 
 
+def board_print(board):
+    for r in range(4):
+        for c in range(4):
+            if board[r, c] > 0:
+                print(('%d ' % board[r, c]).center(5), end='')
+            else:
+                print('____ ', end='')
+        print()
+
+
 class Game2048(object):
 
     def __init__(self):
         self.board = np.zeros((4, 4), dtype=np.int)
+        self.reset()
+
+    def reset(self):
         self.board[:] = -1
         self.put_random_new_number()
         self.put_random_new_number()
@@ -126,13 +139,7 @@ class Game2048(object):
         return self.post_move(board, score)
 
     def print_(self):
-        for r in range(4):
-            for c in range(4):
-                if self.board[r, c] > 0:
-                    print(('%d ' % self.board[r, c]).center(5), end='')
-                else:
-                    print('____ ', end='')
-            print()
+        board_print(self.board)
 
 
 class KeyPressHander(object):
