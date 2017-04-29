@@ -46,13 +46,21 @@ class MLP(nn.Module):
         self.linear2 = nn.Linear(num_hidden, self.num_hidden)
         self.relu2 = nn.LeakyReLU(0.2, inplace=True)
 
+        self.linear3 = nn.Linear(num_hidden, self.num_hidden)
+        self.relu3 = nn.LeakyReLU(0.2, inplace=True)
+
+        self.linear4 = nn.Linear(num_hidden, self.num_hidden)
+        self.relu4 = nn.LeakyReLU(0.2, inplace=True)
+
         self.output = nn.Linear(self.num_hidden, output_size)
 
     def forward(self, state):
         out1 = self.relu1(self.linear1(state))
         out2 = self.relu2(self.linear2(out1))
+        out3 = self.relu3(self.linear3(out2))
+        out4 = self.relu4(self.linear4(out3))
 
-        return self.output(out2)
+        return self.output(out4)
 
 
 class ExperineReplayBuffer(object):
