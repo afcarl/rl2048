@@ -21,6 +21,7 @@ class Env2048(object):
         self.done = False
         self.total_reward = 0
         self.steps = 0
+        self.valid_steps = 0
 
         return self.game.board.flatten()
 
@@ -45,9 +46,12 @@ class Env2048(object):
         elif action_name == 'down':
             self.game.move_down()
 
-        new_baord = self.game.board
+        new_board = self.game.board
 
-        if new_baord.max() > board.max():
+        if np.any(new_board != board):
+            self.valid_steps += 1
+
+        if new_board.max() > board.max():
             reward = 1
         else:
             reward = 0
@@ -56,11 +60,11 @@ class Env2048(object):
         self.total_reward += reward
         self.steps += 1
 
-        if self.done or self.steps > self.step_limit:
+        if self.done or self.steps >= self.step_limit:
             self.done = True
             return self.empty_state.flatten(), reward, self.game.done
         else:
-            return new_baord.flatten(), reward, self.game.done
+            return new_board.flatten(), reward, self.game.done
 
 
 class KeyPressHander(object):

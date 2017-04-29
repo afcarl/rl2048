@@ -20,6 +20,7 @@ parser.add_argument('--update_every', type=int, default=1000)
 parser.add_argument('--validation_episodes', type=int, default=10)
 parser.add_argument('--validate_every', type=int, default=5000)
 parser.add_argument('--episode_step_limit', type=int, default=100)
+parser.add_argument('--debug', type=bool, default=False)
 
 
 def get_config():

@@ -10,20 +10,21 @@ import numpy as np
 import logging
 import copy
 import time
+import pprint
+
 
 
 Step = namedtuple('Step', ['state', 'action', 'reward', 'done', 'next_state'])
 
-logger = logging.getLogger("DQN")
-logger.setLevel(logging.INFO)
+if config.get_config().debug:
+    level = logging.DEBUG
+else:
+    level = logging.INFO
 
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-formatter = logging.Formatter("%(levelname)s %(name)s %(asctime)s:%(message)s",
-                              "%H:%M:%S")
-ch.setFormatter(formatter)
-
-logger.addHandler(ch)
+logging.basicConfig(
+    format='[%(asctime)s] %(levelname)s : %(message)s',
+    level=level,
+)
 
 
 def action_select(q, a):
@@ -143,11 +144,11 @@ class DQN(object):
             self.net_target.cuda()
 
         self.net_main = copy.deepcopy(self.net_target)
-        self.optimizer = torch.optim.Adam(self.net_target.parameters())
+        self.optimizer = torch.optim.Adam(self.net_main.parameters())
 
         self.criterion = nn.MSELoss()
 
-        logger.info('DQN Initialized')
+        logging.info('DQN Initialized')
 
     def random_action(self):
         return random.randint(0, self.num_actions - 1)
@@ -166,7 +167,7 @@ class DQN(object):
 
     def epsilon_greedy_main_action(self, state, epsilon):
 
-        num = random.uniform(0, epsilon)
+        num = random.uniform(0, 1)
 
         if num < epsilon:
             return self.random_action()
@@ -175,7 +176,7 @@ class DQN(object):
 
     def pretrain(self):
 
-        logger.info('Pretraining started')
+        logging.info('Pretraining started')
         env_pretrain = Env2048(self.episode_step_limit)
         state = env_pretrain.reset()
 
@@ -188,10 +189,10 @@ class DQN(object):
 
             if env_pretrain.done:
                 state = env_pretrain.reset()
-        logger.info('Pretraining done')
+        logging.info('Pretraining done')
 
-    def predict_main_batch(self, states_var):
-        q_values = self.net_main(states_var)
+    def predict_target_batch(self, states_var):
+        q_values = self.net_target(states_var)
 
         values, _ = torch.max(q_values, dim=1)
         values = values[:, 0]
@@ -207,6 +208,7 @@ class DQN(object):
         last_update_time = time.time()
         env_train = Env2048(self.episode_step_limit)
 
+        logging.info('Starting training')
         for step in range(self.max_steps):
 
             random_prob -= ((self.start_random - self.end_random) /
@@ -222,24 +224,26 @@ class DQN(object):
             if env_train.done:
                 episode_number += 1
                 max_block = np.max(env_train.game.board)
-                logger.info('Episode %d: Max block = %d Total Reward = %d '
-                            'loss = %f', episode_number, max_block,
-                            env_train.total_reward, batch_loss)
+                logging.debug('Episode %d: Max block = %d Total Reward = %d '
+                              'loss = %f', episode_number, max_block,
+                              env_train.total_reward, batch_loss)
                 env_train.reset()
 
             if step % self.update_every == 0 and step > 0:
                 self.net_main = copy.deepcopy(self.net_target)
-                logger.info('Step %d: Updating main %f secs since last update',
-                            step, (time.time() - last_update_time))
+                logging.debug('Step %d: Updating target %f secs since last update',
+                              step, (time.time() - last_update_time))
                 last_update_time = time.time()
 
             if step % self.validate_every == 0 and step > 0:
-                blocks = self.validate(self.validation_episodes)
-                logger.info('Validation: max blocks = %d, avg block = %d',
-                            np.max(blocks), np.average(blocks))
+                result = self.validate(self.validation_episodes)
+                logging.info('Validation {step} : max block = {max_block} '
+                            'avg block = {avg_block} '
+                            '{valid_steps}/{total_steps} valid steps '
+                            .format(step=step, **result))
 
     def sample_and_train_batch(self):
-        self.net_target.zero_grad()
+        self.net_main.zero_grad()
 
         results = self.exp_buffer.sample(self.batch_size)
         states, actions, rewards, done, next_states = results
@@ -248,12 +252,12 @@ class DQN(object):
         self.state_input.data.copy_(states)
         self.action_input.data.copy_(actions)
 
-        q_main_max = self.predict_main_batch(self.state_input)
+        q_target_max = self.predict_target_batch(self.state_input)
 
-        y = np.where(done, rewards, rewards + self.gamma*q_main_max)
+        y = np.where(done, rewards, rewards + self.gamma*q_target_max)
         self.y_target.data.copy_(torch.Tensor(y))
 
-        q_s = self.net_target(self.state_input)
+        q_s = self.net_main(self.state_input)
         q_s_a = action_select(q_s, self.action_input)
 
         loss = self.criterion(q_s_a, self.y_target)
@@ -267,17 +271,28 @@ class DQN(object):
 
         env = Env2048(self.episode_step_limit)
         blocks = []
+        valid_steps = 0
+        total_steps = 0
         for i in range(steps):
             state = env.reset()
             while not env.done:
                 action = self.predict_target_single(state)
                 state, _, _ = env.execute(action)
 
+            valid_steps += env.valid_steps
+            total_steps += env.steps
             blocks.append(np.max(env.game.board))
 
-        return np.array(blocks)
+        blocks = np.array(blocks)
+        return {
+            'max_block': np.max(blocks),
+            'avg_block': np.average(blocks.astype(np.float)),
+            'total_steps': total_steps,
+            'valid_steps': valid_steps
+        }
 
 
+pprint.pprint(vars(config.get_config()), indent=2)
 dqn = DQN()
 
 dqn.pretrain()
