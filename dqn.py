@@ -127,6 +127,7 @@ class DQN(object):
         self.validate_every = conf.validate_every
         self.validation_episodes = conf.validation_episodes
         self.episode_step_limit = conf.episode_step_limit
+        self.train_every = conf.train_every
 
         self.exp_buffer = ExperineReplayBuffer()
         self.state_input = utils.variable((self.batch_size, self.input_size),
@@ -219,7 +220,8 @@ class DQN(object):
             next_state, reward, done = env_train.execute(action)
             self.exp_buffer.add(state, action, reward, done, next_state)
 
-            batch_loss = self.sample_and_train_batch()
+            if step % self.train_every == 0:
+                batch_loss = self.sample_and_train_batch()
 
             if env_train.done:
                 episode_number += 1
