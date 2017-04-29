@@ -5,13 +5,13 @@ import numpy as np
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--pretraining_steps', type=int, default=10**5)
+parser.add_argument('--pretraining_steps', type=int, default=10**6)
 parser.add_argument('--exp_buffer_size', type=int, default=10**6)
 parser.add_argument('--seed', type=int, default=None)
 parser.add_argument('--hidden_units', type=int, default=512)
 parser.add_argument('--cuda', type=bool, default=False)
 parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--max_steps', type=int, default=10**6)
+parser.add_argument('--max_steps', type=int, default=10**8)
 parser.add_argument('--start_random', type=float, default=1.0)
 parser.add_argument('--end_random', type=float, default=0.1)
 parser.add_argument('--random_anneal_steps', type=int, default=10**6)

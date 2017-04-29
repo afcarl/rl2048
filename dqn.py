@@ -241,7 +241,7 @@ class DQN(object):
                 result = self.validate(self.validation_episodes)
                 logging.info('Validation {step} : max block = {max_block} '
                             'avg block = {avg_block} '
-                            '{valid_steps}/{total_steps} valid steps '
+                            'valid steps {valid_steps}/{total_steps}'
                             .format(step=step, **result))
 
     def sample_and_train_batch(self):
