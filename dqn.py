@@ -13,7 +13,6 @@ import time
 import pprint
 
 
-
 Step = namedtuple('Step', ['state', 'action', 'reward', 'done', 'next_state'])
 
 if config.get_config().debug:
@@ -29,6 +28,15 @@ logging.basicConfig(
 
 def action_select(q, a):
     return q.gather(1, a.view(-1, 1))[:, 0]
+
+
+def copy_data(var, array):
+    if isinstance(array, np.ndarray):
+        if isinstance(var.data, torch.FloatTensor):
+            array = array.astype(np.float)
+        array = torch.Tensor(array)
+
+    var.data.copy_(array)
 
 
 class MLP(nn.Module):
@@ -138,14 +146,19 @@ class DQN(object):
         self.train_every = conf.train_every
 
         self.exp_buffer = ExperineReplayBuffer()
-        self.state_input = utils.variable((self.batch_size, self.input_size),
-                                          cuda=self.cuda, type_='float')
-        self.state_input.data.zero_()
+        self.state_var = utils.variable((self.batch_size, self.input_size),
+                                        cuda=self.cuda, type_='float')
+        self.next_state_var = utils.variable(
+            (self.batch_size, self.input_size),
+            cuda=self.cuda, type_='float')
+
+        self.state_var.data.zero_()
+        self.next_state_var.data.zero_()
 
         self.y_target = utils.variable((self.batch_size, ), cuda=self.cuda,
                                        type_='float')
-        self.action_input = utils.variable((self.batch_size, ), cuda=self.cuda,
-                                           type_='long')
+        self.action_var = utils.variable((self.batch_size, ), cuda=self.cuda,
+                                         type_='long')
 
         self.net_target = MLP(self.input_size, self.num_actions,
                               conf.hidden_units)
@@ -164,14 +177,14 @@ class DQN(object):
 
     def predict_target_single(self, state):
 
-        self.state_input.data[0, :] = torch.Tensor(state.astype(np.float))
-        q_first = self.net_target(self.state_input)[0]
+        copy_data(self.state_var[0, :], state)
+        q_first = self.net_target(self.state_var)[0]
         return np.argmax(q_first)
 
     def predict_main_single(self, state):
 
-        self.state_input.data[0, :] = torch.Tensor(state.astype(np.float))
-        q_first = self.net_main(self.state_input)[0]
+        copy_data(self.state_var[0, :], state)
+        q_first = self.net_main(self.state_var)[0]
         return np.argmax(q_first)
 
     def epsilon_greedy_main_action(self, state, epsilon):
@@ -200,8 +213,15 @@ class DQN(object):
                 state = env_pretrain.reset()
         logging.info('Pretraining done')
 
-    def predict_target_batch(self, states_var):
-        q_values = self.net_target(states_var)
+    def predict_target_batch(self, states):
+        q_values = self.net_target(states)
+
+        values, _ = torch.max(q_values, dim=1)
+        values = values[:, 0]
+        return values.data.cpu().numpy()
+
+    def predict_main_batch(self, states):
+        q_values = self.net_main(self.state_input)
 
         values, _ = torch.max(q_values, dim=1)
         values = values[:, 0]
@@ -241,34 +261,39 @@ class DQN(object):
 
             if step % self.update_every == 0 and step > 0:
                 self.net_main = copy.deepcopy(self.net_target)
-                logging.debug('Step %d: Updating target %f secs since last update',
+                logging.debug('Step %d: Updating target %f secs since last '
+                              'update',
                               step, (time.time() - last_update_time))
                 last_update_time = time.time()
 
             if step % self.validate_every == 0 and step > 0:
                 result = self.validate(self.validation_episodes)
                 logging.info('Validation {step} : max block = {max_block} '
-                            'avg block = {avg_block} '
-                            'valid steps {valid_steps}/{total_steps}'
-                            .format(step=step, **result))
+                             'avg block = {avg_block} '
+                             'valid steps {valid_steps}/{total_steps}'
+                             .format(step=step, **result))
 
     def sample_and_train_batch(self):
         self.net_main.zero_grad()
 
         results = self.exp_buffer.sample(self.batch_size)
         states, actions, rewards, done, next_states = results
-        states = torch.Tensor(states.astype(np.float))
-        actions = torch.LongTensor(actions)
-        self.state_input.data.copy_(states)
-        self.action_input.data.copy_(actions)
+        copy_data(self.state_var, states)
+        copy_data(self.next_state_var, next_states)
+        copy_data(self.action_var, actions)
 
-        q_target_max = self.predict_target_batch(self.state_input)
+        # Get max q value of the next state from the target net
+        q_target_max_next_state = self.predict_target_batch(self.state_var)
 
-        y = np.where(done, rewards, rewards + self.gamma*q_target_max)
-        self.y_target.data.copy_(torch.Tensor(y))
+        # Compute y based on if the episode terminates
+        y = np.where(done, rewards,
+                     rewards + self.gamma*q_target_max_next_state)
+        copy_data(self.y_target, y)
 
-        q_s = self.net_main(self.state_input)
-        q_s_a = action_select(q_s, self.action_input)
+        # Get computed q value for the given states and actions from
+        # the man net
+        q_s = self.net_main(self.state_var)
+        q_s_a = action_select(q_s, self.action_var)
 
         loss = self.criterion(q_s_a, self.y_target)
         loss.backward()
