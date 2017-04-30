@@ -165,6 +165,7 @@ class DQN(object):
         if self.cuda:
             self.net_target.cuda()
 
+        # We optimize only the main network.
         self.net_main = copy.deepcopy(self.net_target)
         self.optimizer = torch.optim.Adam(self.net_main.parameters())
 
@@ -215,13 +216,6 @@ class DQN(object):
 
     def predict_target_batch(self, states):
         q_values = self.net_target(states)
-
-        values, _ = torch.max(q_values, dim=1)
-        values = values[:, 0]
-        return values.data.cpu().numpy()
-
-    def predict_main_batch(self, states):
-        q_values = self.net_main(self.state_input)
 
         values, _ = torch.max(q_values, dim=1)
         values = values[:, 0]
@@ -290,7 +284,7 @@ class DQN(object):
         copy_data(self.y_target, y)
 
         # Get computed q value for the given states and actions from
-        # the man net
+        # the main net
         q_s = self.net_main(self.state_var)
         q_s_a = action_select(q_s, self.action_var)
 
