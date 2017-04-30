@@ -1,17 +1,18 @@
-import config
+import copy
+import logging
+import pprint
+import random
+import time
 from collections import namedtuple
+
+import numpy as np
+import torch
+from torch import nn
+
+import config
+import utils
 from env import Env2048
 from game import board_print
-import random
-from torch import nn
-import torch
-import utils
-import numpy as np
-import logging
-import copy
-import time
-import pprint
-
 
 Step = namedtuple('Step', ['state', 'action', 'reward', 'done', 'next_state'])
 
@@ -262,7 +263,7 @@ class DQN(object):
                 self.net_target = copy.deepcopy(self.net_main)
                 logging.info('Step %d: Updating target %f secs since last '
                              'update',
-                              step, (time.time() - last_update_time))
+                             step, (time.time() - last_update_time))
                 last_update_time = time.time()
                 result = self.validate(self.validation_episodes)
                 logging.info('Validation {step} : max block = {max_block} '
@@ -280,7 +281,8 @@ class DQN(object):
         copy_data(self.action_var, actions)
 
         # Get max q value of the next state from the target net
-        q_target_max_next_state = self.predict_target_batch(self.next_state_var)
+        q_target_max_next_state = self.predict_target_batch(
+            self.next_state_var)
 
         # Compute y based on if the episode terminates
         y = np.where(done, rewards,

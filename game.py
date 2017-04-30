@@ -1,8 +1,9 @@
 from __future__ import print_function
-import numpy as np
-import random
-import os
 
+import os
+import random
+
+import numpy as np
 
 start_digits = [2, 4]
 

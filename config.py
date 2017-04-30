@@ -1,7 +1,7 @@
 import argparse
 import random
-import numpy as np
 
+import numpy as np
 
 parser = argparse.ArgumentParser()
 

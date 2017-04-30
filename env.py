@@ -1,7 +1,9 @@
+import os
+
+import numpy as np
+
 import config
 from game import Game2048
-import os
-import numpy as np
 
 
 class Env2048(object):
