@@ -260,7 +260,7 @@ class DQN(object):
                 env_train.reset()
 
             if step % self.update_every == 0 and step > 0:
-                self.net_main = copy.deepcopy(self.net_target)
+                self.net_target = copy.deepcopy(self.net_main)
                 logging.debug('Step %d: Updating target %f secs since last '
                               'update',
                               step, (time.time() - last_update_time))
@@ -283,7 +283,7 @@ class DQN(object):
         copy_data(self.action_var, actions)
 
         # Get max q value of the next state from the target net
-        q_target_max_next_state = self.predict_target_batch(self.state_var)
+        q_target_max_next_state = self.predict_target_batch(self.next_state_var)
 
         # Compute y based on if the episode terminates
         y = np.where(done, rewards,
