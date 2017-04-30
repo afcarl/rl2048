@@ -140,7 +140,6 @@ class DQN(object):
         self.random_anneal_steps = conf.random_anneal_steps
         self.gamma = conf.gamma
         self.update_every = conf.update_every
-        self.validate_every = conf.validate_every
         self.validation_episodes = conf.validation_episodes
         self.episode_step_limit = conf.episode_step_limit
         self.train_every = conf.train_every
@@ -261,12 +260,10 @@ class DQN(object):
 
             if step % self.update_every == 0 and step > 0:
                 self.net_target = copy.deepcopy(self.net_main)
-                logging.debug('Step %d: Updating target %f secs since last '
-                              'update',
+                logging.info('Step %d: Updating target %f secs since last '
+                             'update',
                               step, (time.time() - last_update_time))
                 last_update_time = time.time()
-
-            if step % self.validate_every == 0 and step > 0:
                 result = self.validate(self.validation_episodes)
                 logging.info('Validation {step} : max block = {max_block} '
                              'avg block = {avg_block} '
