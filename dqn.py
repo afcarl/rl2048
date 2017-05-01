@@ -276,7 +276,7 @@ class DQN(object):
                 stats['training_max_block'].append(max_block)
                 env_train.reset()
 
-            if step % self.train_every == 0:
+            if step % self.train_every == 0 and step > 0:
                 batch_loss = self.sample_and_train_batch()
 
                 stats['training_step'].append(step)
