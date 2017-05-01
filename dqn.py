@@ -265,13 +265,6 @@ class DQN(object):
             next_state, reward, done = env_train.execute(action)
             self.exp_buffer.add(state, action, reward, done, next_state)
 
-            if step % self.train_every == 0 and step > 0:
-                batch_loss = self.sample_and_train_batch()
-
-                stats['training_step'].append(step)
-                stats['loss'].append(batch_loss)
-                logging.debug('Step %d: loss = %f', step, batch_loss)
-
             if env_train.done:
                 episode_number += 1
                 max_block = np.max(env_train.game.board)
@@ -282,6 +275,13 @@ class DQN(object):
                 stats['episode'].append(episode_number)
                 stats['training_max_block'].append(max_block)
                 env_train.reset()
+
+            if step % self.train_every == 0 and step > 0:
+                batch_loss = self.sample_and_train_batch()
+
+                stats['training_step'].append(step)
+                stats['loss'].append(batch_loss)
+                logging.debug('Step %d: loss = %f', step, batch_loss)
 
             if step % self.train_every == 0 and step > 0:
                 batch_loss = self.sample_and_train_batch()
