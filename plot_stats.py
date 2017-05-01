@@ -3,7 +3,6 @@ import sys
 import pickle
 
 
-
 ax_loss = plt.subplot(221)
 ax_training_maxblock = plt.subplot(222)
 ax_validation_maxblock = plt.subplot(223, sharex=ax_loss)
