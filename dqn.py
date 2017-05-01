@@ -265,7 +265,7 @@ class DQN(object):
             next_state, reward, done = env_train.execute(action)
             self.exp_buffer.add(state, action, reward, done, next_state)
 
-            if step % self.train_every == 0:
+            if step % self.train_every == 0 and step > 0:
                 batch_loss = self.sample_and_train_batch()
 
                 stats['training_step'].append(step)
