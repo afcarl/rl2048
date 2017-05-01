@@ -1,5 +1,7 @@
 import copy
 import logging
+import os
+import pickle
 import pprint
 import random
 import time
@@ -38,6 +40,11 @@ def copy_data(var, array):
         array = torch.Tensor(array)
 
     var.data.copy_(array)
+
+
+def dump_file(filename, obj):
+    with open(filename, 'w') as f:
+        pickle.dump(obj, f)
 
 
 class MLP(nn.Module):
@@ -144,6 +151,7 @@ class DQN(object):
         self.validation_episodes = conf.validation_episodes
         self.episode_step_limit = conf.episode_step_limit
         self.train_every = conf.train_every
+        self.dump_every = conf.dump_every
 
         self.exp_buffer = ExperineReplayBuffer()
         self.state_var = utils.variable((self.batch_size, self.input_size),
@@ -170,6 +178,11 @@ class DQN(object):
         self.optimizer = torch.optim.Adam(self.net_main.parameters())
 
         self.criterion = nn.MSELoss()
+
+        log_dir = os.path.join('logs', conf.name)
+        utils.make_dir(log_dir)
+
+        self.stats_file = os.path.join(log_dir, 'stats.pkl')
 
         logging.info('DQN Initialized')
 
@@ -224,6 +237,15 @@ class DQN(object):
     def train(self):
 
         env_train = Env2048(self.episode_step_limit)
+        stats = {
+            'training_step': [],
+            'validation_step': [],
+            'episode': [],
+            'loss': [],
+            'training_max_block': [],
+            'validation_valid_moves': [],
+            'validation_max_block': [],
+        }
 
         state = env_train.reset()
         random_prob = self.start_random
@@ -232,6 +254,7 @@ class DQN(object):
         env_train = Env2048(self.episode_step_limit)
 
         logging.info('Starting training')
+
         for step in range(self.max_steps):
 
             random_prob -= ((self.start_random - self.end_random) /
@@ -245,12 +268,19 @@ class DQN(object):
             if step % self.train_every == 0:
                 batch_loss = self.sample_and_train_batch()
 
+                stats['training_step'].append(step)
+                stats['loss'].append(batch_loss)
+                logging.debug('Step %d: loss = %f', step, batch_loss)
+
             if env_train.done:
                 episode_number += 1
                 max_block = np.max(env_train.game.board)
-                logging.debug('Episode %d: Max block = %d Total Reward = %d '
-                              'loss = %f', episode_number, max_block,
-                              env_train.total_reward, batch_loss)
+                logging.debug('Episode %d: Max block = %d Total Reward = %d ',
+                              episode_number, max_block,
+                              env_train.total_reward)
+
+                stats['episode'].append(episode_number)
+                stats['training_max_block'].append(max_block)
                 env_train.reset()
 
             if step % self.update_every == 0 and step > 0:
@@ -264,6 +294,13 @@ class DQN(object):
                              'avg block = {avg_block} '
                              'valid steps {valid_steps}/{total_steps}'
                              .format(step=step, **result))
+
+                stats['validation_step'].append(step)
+                stats['validation_max_block'].append(result['max_block'])
+                stats['validation_valid_moves'].append(result['valid_steps'])
+
+            if step % self.dump_every == 0:
+                dump_file(self.stats_file, stats)
 
     def sample_and_train_batch(self):
         self.net_main.zero_grad()

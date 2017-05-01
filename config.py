@@ -22,6 +22,8 @@ parser.add_argument('--train_every', type=int, default=16)
 parser.add_argument('--episode_step_limit', type=int, default=100)
 parser.add_argument('--debug', type=bool, default=False)
 parser.add_argument('--name', type=str, default='default')
+parser.add_argument('--dump_every', type=int, default=1000)
+
 
 
 def get_config():

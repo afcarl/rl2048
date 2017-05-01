@@ -1,3 +1,5 @@
+import os
+
 import torch
 from torch.autograd import Variable
 
@@ -12,3 +14,10 @@ def variable(shape, cuda=False, type_='float'):
         x = x.cuda()
 
     return x
+
+
+def make_dir(path):
+    try:
+        os.makedirs(path)
+    except OSError:
+        pass
