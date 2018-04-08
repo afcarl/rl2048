@@ -99,3 +99,5 @@ ENV/
 
 run.sh
 logs/
+
+.DS_Store

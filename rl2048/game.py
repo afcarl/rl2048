@@ -1,4 +1,5 @@
 from __future__ import print_function
+from pynput import keyboard
 
 import os
 import random
@@ -8,25 +9,27 @@ import numpy as np
 start_digits = [2, 4]
 
 
-def compress(values):
+def compress_left(values):
 
     assert isinstance(values, list)
 
-    l = len(values)
-    if l <= 1:
+    num_values = len(values)
+    if num_values <= 1:
         return values, 0
+
+    elif num_values == 2:
+        if values[0] == values[1]:
+            return [2*values[0]], 2*values[0]
 
     else:
         if values[0] == values[1]:
-            rest, score = compress(values[2:])
+            rest, score = compress_left(values[2:])
             return [values[0]*2] + rest, values[0]*2 + score
         else:
-            if len(values) >= 3 and values[1] == values[2]:
-                rest, score = compress(values[3:])
-                return [values[0], values[1]*2] + rest, score + values[1]*2
-            else:
-                rest, score = compress(values[2:])
-                return values[:2] + rest, score
+            rest, score = compress_left(values[1:])
+            return [values[0]] + rest, score
+
+    return values, 0
 
 
 def board_left(board):
@@ -36,12 +39,12 @@ def board_left(board):
     for row in range(4):
         values = board[row]
         values = list(values[values > 0])
-        values, score = compress(values)
+        values, score = compress_left(values)
         total_score += score
 
-        l = len(values)
-        board_return[row, :l] = values
-        board_return[row, l:] = -1
+        num_values = len(values)
+        board_return[row, :num_values] = values
+        board_return[row, num_values:] = -1
 
     return board_return, total_score
 
@@ -102,6 +105,8 @@ class Game2048(object):
 
         if not self.can_move():
             self.done = True
+
+        return score
 
     def can_move_left(self):
         return np.any(board_left(self.board)[0] != self.board)
@@ -177,7 +182,6 @@ class KeyPressHander(object):
 
 
 if __name__ == '__main__':
-    from pynput import keyboard
 
     kph = KeyPressHander()
     with keyboard.Listener(on_press=kph.on_press) as listener:

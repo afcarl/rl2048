@@ -2,8 +2,9 @@ import os
 
 import numpy as np
 
-import config
-from game import Game2048
+from . import config
+from .game import Game2048
+import math
 
 
 class Env2048(object):
@@ -15,6 +16,7 @@ class Env2048(object):
         self.action_map = conf.action_map
         self.empty_state = np.zeros(16, dtype=np.int).flatten()
         self.step_limit = step_limit
+        self.reward_mode = conf.reward_mode
 
         self.reset()
 
@@ -27,6 +29,9 @@ class Env2048(object):
 
         return self.game.board.flatten()
 
+    def average_reward(self):
+        return self.total_reward/self.steps
+
     def execute(self, action):
 
         if self.done:
@@ -37,26 +42,31 @@ class Env2048(object):
         action_name = self.action_map[action]
 
         if action_name == 'left':
-            self.game.move_left()
+            score = self.game.move_left()
 
         elif action_name == 'right':
-            self.game.move_right()
+            score = self.game.move_right()
 
         elif action_name == 'up':
-            self.game.move_up()
+            score = self.game.move_up()
 
         elif action_name == 'down':
-            self.game.move_down()
+            score = self.game.move_down()
 
         new_board = self.game.board
 
         if np.any(new_board != board):
             self.valid_steps += 1
 
-        if new_board.max() > board.max():
-            reward = 1
-        else:
-            reward = 0
+        if self.reward_mode == 'sparse':
+            if new_board.max() > board.max():
+                reward = 1
+            else:
+                reward = 0
+        elif self.reward_mode == 'dense':
+            if score != 0:
+                score = math.log(score, 2)
+            reward = score/11.0
 
         self.done = self.game.done
         self.total_reward += reward
@@ -103,7 +113,7 @@ class KeyPressHander(object):
             self.env.game.print_()
             self.total_reward += r
 
-            print('Total Reward = %d' % self.total_reward)
+            print('Total Reward = %f' % self.total_reward)
             if self.env.done:
                 print('Episode Complete')
                 exit()

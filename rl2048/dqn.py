@@ -11,10 +11,12 @@ import numpy as np
 import torch
 from torch import nn
 
-import config
-import utils
-from env import Env2048
-from game import board_print
+from . import config
+from . import utils
+from .env import Env2048
+from .game import board_print
+from .stats import Stats
+
 
 Step = namedtuple('Step', ['state', 'action', 'reward', 'done', 'next_state'])
 
@@ -33,6 +35,11 @@ def action_select(q, a):
     return q.gather(1, a.view(-1, 1))[:, 0]
 
 
+def dump_file(filename, obj):
+    with open(filename, 'wb') as f:
+        pickle.dump(obj, f)
+
+
 def copy_data(var, array):
     if isinstance(array, np.ndarray):
         if isinstance(var.data, torch.FloatTensor):
@@ -40,11 +47,6 @@ def copy_data(var, array):
         array = torch.Tensor(array)
 
     var.data.copy_(array)
-
-
-def dump_file(filename, obj):
-    with open(filename, 'w') as f:
-        pickle.dump(obj, f)
 
 
 class MLP(nn.Module):
@@ -154,19 +156,26 @@ class DQN(object):
         self.dump_every = conf.dump_every
 
         self.exp_buffer = ExperineReplayBuffer()
-        self.state_var = utils.variable((self.batch_size, self.input_size),
-                                        cuda=self.cuda, type_='float')
-        self.next_state_var = utils.variable(
+
+        # Variables
+        self.state_batch = utils.variable(
             (self.batch_size, self.input_size),
             cuda=self.cuda, type_='float')
 
-        self.state_var.data.zero_()
-        self.next_state_var.data.zero_()
+        self.next_state_batch = utils.variable(
+            (self.batch_size, self.input_size),
+            cuda=self.cuda, type_='float')
+
+        self.state_batch.data.zero_()
+        self.next_state_batch.data.zero_()
+
+        self.state = utils.variable((self.input_size, ), cuda=self.cuda,
+                                    type_='float')
 
         self.y_target = utils.variable((self.batch_size, ), cuda=self.cuda,
                                        type_='float')
-        self.action_var = utils.variable((self.batch_size, ), cuda=self.cuda,
-                                         type_='long')
+        self.action = utils.variable((self.batch_size, ), cuda=self.cuda,
+                                     type_='long')
 
         self.net_target = MLP(self.input_size, self.num_actions,
                               conf.hidden_units)
@@ -180,7 +189,7 @@ class DQN(object):
         self.criterion = nn.MSELoss()
 
         log_dir = os.path.join('logs', conf.name)
-        utils.make_dir(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
 
         self.stats_file = os.path.join(log_dir, 'stats.pkl')
 
@@ -191,15 +200,17 @@ class DQN(object):
 
     def predict_target_single(self, state):
 
-        copy_data(self.state_var[0, :], state)
-        q_first = self.net_target(self.state_var)[0]
-        return np.argmax(q_first)
+        copy_data(self.state, state)
+        q = self.net_target(self.state)
+        _, index = torch.max(q, 0)
+        return index
 
     def predict_main_single(self, state):
 
-        copy_data(self.state_var[0, :], state)
-        q_first = self.net_main(self.state_var)[0]
-        return np.argmax(q_first)
+        copy_data(self.state, state)
+        q = self.net_main(self.state_var)
+        _, index = torch.max(q, 0)
+        return index
 
     def epsilon_greedy_main_action(self, state, epsilon):
 
@@ -231,24 +242,21 @@ class DQN(object):
         q_values = self.net_target(states)
 
         values, _ = torch.max(q_values, dim=1)
-        values = values[:, 0]
         return values.data.cpu().numpy()
+
+    def annealed_prob(self, steps):
+
+        prob_dec = ((self.end_random - self.start_random) * steps /
+                    self.random_anneal_steps)
+        prob = self.start_random - prob_dec
+        return max(prob, self.end_random)
 
     def train(self):
 
         env_train = Env2048(self.episode_step_limit)
-        stats = {
-            'training_step': [],
-            'validation_step': [],
-            'episode': [],
-            'loss': [],
-            'training_max_block': [],
-            'validation_valid_moves': [],
-            'validation_max_block': [],
-        }
+        self.stats = Stats()
 
         state = env_train.reset()
-        random_prob = self.start_random
         episode_number = 0
         last_update_time = time.time()
         env_train = Env2048(self.episode_step_limit)
@@ -257,70 +265,79 @@ class DQN(object):
 
         for step in range(self.max_steps):
 
-            random_prob -= ((self.start_random - self.end_random) /
-                            self.random_anneal_steps)
-            random_prob = max(random_prob, self.end_random)
-            action = self.epsilon_greedy_main_action(state, random_prob)
+            action = self.epsilon_greedy_main_action(state,
+                                                     self.annealed_prob(step))
 
             next_state, reward, done = env_train.execute(action)
             self.exp_buffer.add(state, action, reward, done, next_state)
 
             if env_train.done:
-                episode_number += 1
-                max_block = np.max(env_train.game.board)
-                logging.debug('Episode %d: Max block = %d Total Reward = %d ',
-                              episode_number, max_block,
-                              env_train.total_reward)
-
-                stats['episode'].append(episode_number)
-                stats['training_max_block'].append(max_block)
+                self.print_training_stats(episode_number, env_train)
                 env_train.reset()
+                episode_number += 1
 
             if step % self.train_every == 0 and step > 0:
                 batch_loss = self.sample_and_train_batch()
 
-                stats['training_step'].append(step)
-                stats['loss'].append(batch_loss)
-                logging.debug('Step %d: loss = %f', step, batch_loss)
-
-            if step % self.train_every == 0 and step > 0:
-                batch_loss = self.sample_and_train_batch()
-
-                stats['training_step'].append(step)
-                stats['loss'].append(batch_loss)
-                logging.debug('Step %d: loss = %f', step, batch_loss)
+                if step > 1000:
+                    self.stats.record('train', 'Loss', batch_loss, step)
+                logging.debug(f"Step {step}: loss = {batch_loss}")
 
             if step % self.update_every == 0 and step > 0:
+                # Update target net
                 self.net_target = copy.deepcopy(self.net_main)
-                logging.info('Step %d: Updating target %f secs since last '
-                             'update',
-                             step, (time.time() - last_update_time))
-                last_update_time = time.time()
-                result = self.validate(self.validation_episodes)
-                logging.info('Validation {step} : max block = {max_block} '
-                             'avg block = {avg_block} '
-                             'valid steps {valid_steps}/{total_steps}'
-                             .format(step=step, **result))
 
-                stats['validation_step'].append(step)
-                stats['validation_max_block'].append(result['max_block'])
-                stats['validation_valid_moves'].append(result['valid_steps'])
+                update_time = time.time() - last_update_time
+                self.print_validation_stats(step, update_time)
+                logging.info(f"Step {step}: loss = {batch_loss}")
+
+                last_update_time = time.time()
 
             if step % self.dump_every == 0:
-                dump_file(self.stats_file, stats)
+                dump_file(self.stats_file, self.stats)
+
+    def print_training_stats(self, episode_number, env_train):
+        episode_number += 1
+        max_block = np.max(env_train.game.board)
+        avg_reward = env_train.average_reward()
+
+        logging.debug((
+            f"Episode {episode_number}: Max block = {max_block}"
+            f"Avg. Reward = {avg_reward}"))
+
+        self.stats.record('train', 'Max Block-ep', max_block,
+                          episode_number)
+        self.stats.record('train', 'Avg. Reward',
+                          env_train.average_reward(), episode_number)
+
+    def print_validation_stats(self, step, update_time):
+        logging.info(
+            f"Step {step}: Updating target {update_time} secs "
+            "since last update")
+
+        result = self.validate(self.validation_episodes)
+
+        max_block = result['max_block']
+        avg_block = result['avg_block']
+        valid_frac = result['valid_frac']
+        logging.info(f"Validation {step} : max block = {max_block} "
+                     f"avg block = {avg_block} valid frac. = {valid_frac}")
+
+        self.stats.record('val', 'Max Block-step', result['max_block'], step)
+        self.stats.record('val', 'Valid Fraction', result['valid_frac'], step)
 
     def sample_and_train_batch(self):
         self.net_main.zero_grad()
 
         results = self.exp_buffer.sample(self.batch_size)
         states, actions, rewards, done, next_states = results
-        copy_data(self.state_var, states)
-        copy_data(self.next_state_var, next_states)
-        copy_data(self.action_var, actions)
+        copy_data(self.state_batch, states)
+        copy_data(self.next_state_batch, next_states)
+        copy_data(self.action, actions)
 
         # Get max q value of the next state from the target net
         q_target_max_next_state = self.predict_target_batch(
-            self.next_state_var)
+            self.next_state_batch)
 
         # Compute y based on if the episode terminates
         y = np.where(done, rewards,
@@ -329,8 +346,8 @@ class DQN(object):
 
         # Get computed q value for the given states and actions from
         # the main net
-        q_s = self.net_main(self.state_var)
-        q_s_a = action_select(q_s, self.action_var)
+        q_s = self.net_main(self.state_batch)
+        q_s_a = action_select(q_s, self.action)
 
         loss = self.criterion(q_s_a, self.y_target)
         loss.backward()
@@ -349,7 +366,7 @@ class DQN(object):
             state = env.reset()
             while not env.done:
                 action = self.predict_target_single(state)
-                state, _, _ = env.execute(action)
+                state, _, _ = env.execute(action.data[0])
 
             valid_steps += env.valid_steps
             total_steps += env.steps
@@ -359,8 +376,7 @@ class DQN(object):
         return {
             'max_block': np.max(blocks),
             'avg_block': np.average(blocks.astype(np.float)),
-            'total_steps': total_steps,
-            'valid_steps': valid_steps
+            'valid_frac': valid_steps/total_steps,
         }
 
 

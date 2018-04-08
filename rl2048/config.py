@@ -5,7 +5,7 @@ import numpy as np
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--pretraining_steps', type=int, default=10**6)
+parser.add_argument('--pretraining_steps', type=int, default=10**4)
 parser.add_argument('--exp_buffer_size', type=int, default=10**6)
 parser.add_argument('--seed', type=int, default=None)
 parser.add_argument('--hidden_units', type=int, default=512)
@@ -14,7 +14,8 @@ parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--max_steps', type=int, default=10**8)
 parser.add_argument('--start_random', type=float, default=1.0)
 parser.add_argument('--end_random', type=float, default=0.1)
-parser.add_argument('--random_anneal_steps', type=int, default=10**6)
+parser.add_argument('--random_anneal_steps', type=int, default=10**4)
+parser.add_argument('--reward_mode', type=str, default='dense')
 parser.add_argument('--gamma', type=float, default=0.99)
 parser.add_argument('--update_every', type=int, default=10000)
 parser.add_argument('--validation_episodes', type=int, default=10)
