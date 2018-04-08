@@ -184,7 +184,8 @@ class DQN(object):
 
         # We optimize only the main network.
         self.net_main = copy.deepcopy(self.net_target)
-        self.optimizer = torch.optim.Adam(self.net_main.parameters())
+        self.optimizer = torch.optim.Adam(self.net_main.parameters(),
+                                          lr=0.0001)
 
         self.criterion = nn.MSELoss()
 
@@ -208,7 +209,7 @@ class DQN(object):
     def predict_main_single(self, state):
 
         copy_data(self.state, state)
-        q = self.net_main(self.state_var)
+        q = self.net_main(self.state)
         _, index = torch.max(q, 0)
         return index
 
