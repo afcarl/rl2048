@@ -204,14 +204,14 @@ class DQN(object):
         copy_data(self.state, state)
         q = self.net_target(self.state)
         _, index = torch.max(q, 0)
-        return index
+        return index.data[0]
 
     def predict_main_single(self, state):
 
         copy_data(self.state, state)
         q = self.net_main(self.state)
         _, index = torch.max(q, 0)
-        return index
+        return index.data[0]
 
     def epsilon_greedy_main_action(self, state, epsilon):
 
@@ -247,7 +247,7 @@ class DQN(object):
 
     def annealed_prob(self, steps):
 
-        prob_dec = ((self.end_random - self.start_random) * steps /
+        prob_dec = ((self.start_random - self.end_random) * steps /
                     self.random_anneal_steps)
         prob = self.start_random - prob_dec
         return max(prob, self.end_random)
@@ -367,7 +367,7 @@ class DQN(object):
             state = env.reset()
             while not env.done:
                 action = self.predict_target_single(state)
-                state, _, _ = env.execute(action.data[0])
+                state, _, _ = env.execute(action)
 
             valid_steps += env.valid_steps
             total_steps += env.steps

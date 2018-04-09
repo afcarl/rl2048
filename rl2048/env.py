@@ -32,6 +32,15 @@ class Env2048(object):
     def average_reward(self):
         return self.total_reward/self.steps
 
+    def process_state(self, state):
+
+        state = state.copy()
+        pos_state = state[state > 0]
+        state[state > 0] = np.log2(pos_state)/11
+        state[state < 0] = -1
+
+        return state
+
     def execute(self, action):
 
         if self.done:
@@ -56,17 +65,32 @@ class Env2048(object):
         new_board = self.game.board
 
         if np.any(new_board != board):
+            move_valid = True
             self.valid_steps += 1
+        else:
+            move_valid = False
 
         if self.reward_mode == 'sparse':
             if new_board.max() > board.max():
                 reward = 1
             else:
                 reward = 0
+
         elif self.reward_mode == 'dense':
             if score != 0:
                 score = math.log(score, 2)
             reward = score/11.0
+            if not move_valid:
+                reward = -1
+
+        elif self.reward_mode == 'stupid':
+            reward = action/4.0
+
+        elif self.reward_mode == 'valid':
+            if move_valid:
+                reward = 1
+            else:
+                reward = -1
 
         self.done = self.game.done
         self.total_reward += reward
@@ -74,9 +98,11 @@ class Env2048(object):
 
         if self.done or self.steps >= self.step_limit:
             self.done = True
-            return self.empty_state.flatten(), reward, self.game.done
+            return (self.process_state(self.empty_state.flatten()), reward,
+                    self.game.done)
         else:
-            return new_board.flatten(), reward, self.game.done
+            return (self.process_state(new_board.flatten()), reward,
+                    self.game.done)
 
 
 class KeyPressHander(object):
