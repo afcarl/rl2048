@@ -1,6 +1,6 @@
-import sys
 import pickle
-from matplotlib import pyplot as plt
+import sys
+
 
 class Stats:
 
@@ -18,6 +18,8 @@ class Stats:
         stats[name] = values
 
     def plot(self):
+
+        from matplotlib import pyplot as plt
 
         all_keys = []
         for mode in self.modes:

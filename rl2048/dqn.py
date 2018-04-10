@@ -8,15 +8,14 @@ import time
 from collections import namedtuple
 
 import numpy as np
+
 import torch
 from torch import nn
 
-from . import config
-from . import utils
+from . import config, utils
 from .env import Env2048
 from .game import board_print
 from .stats import Stats
-
 
 Step = namedtuple('Step', ['state', 'action', 'reward', 'done', 'next_state'])
 
@@ -75,10 +74,10 @@ class MLP(nn.Module):
     def forward(self, state):
         out1 = self.relu1(self.linear1(state))
         out2 = self.relu2(self.linear2(out1))
-        out3 = self.relu3(self.linear3(out2))
-        out4 = self.relu4(self.linear4(out3))
+        #out3 = self.relu3(self.linear3(out2))
+        #out4 = self.relu4(self.linear4(out3))
 
-        return self.output(out4)
+        return self.output(out2)
 
 
 class ExperineReplayBuffer(object):
@@ -142,7 +141,7 @@ class DQN(object):
         self.num_actions = len(conf.action_map)
         self.hidden_units = conf.hidden_units
         self.input_size = 16
-        self.cuda = conf.cuda
+        self.cuda = torch.cuda.is_available()
         self.batch_size = conf.batch_size
         self.max_steps = conf.max_steps
         self.start_random = conf.start_random
