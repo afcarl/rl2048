@@ -1,0 +1,12 @@
+version: '3'
+services:
+  main:
+    build:
+      context: .
+    image: rl2048
+    environment:
+      - CODE_PATH=/code
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/code
