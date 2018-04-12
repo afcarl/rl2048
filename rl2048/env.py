@@ -34,7 +34,7 @@ class Env2048(object):
 
     def process_state(self, state):
 
-        state = state.copy()
+        state = state.astype(np.float, copy=True)
         pos_state = state[state > 0]
         state[state > 0] = np.log2(pos_state)/11
         state[state < 0] = -1
