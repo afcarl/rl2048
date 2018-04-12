@@ -139,7 +139,8 @@ class KeyPressHander(object):
             self.env.game.print_()
             self.total_reward += r
 
-            print('Total Reward = %f' % self.total_reward)
+            print(f"Total Reward = {self.total_reward} "
+                  f"Valid steps = {self.env.valid_steps}")
             if self.env.done:
                 print('Episode Complete')
                 exit()

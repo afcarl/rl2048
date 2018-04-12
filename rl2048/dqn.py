@@ -271,9 +271,10 @@ class DQN(object):
             next_state, reward, done = env_train.execute(action)
             self.exp_buffer.add(state, action, reward, done, next_state)
 
+            state = next_state
             if env_train.done:
                 self.print_training_stats(episode_number, env_train)
-                env_train.reset()
+                state = env_train.reset()
                 episode_number += 1
 
             if step % self.train_every == 0 and step > 0:

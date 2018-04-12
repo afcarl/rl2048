@@ -26,7 +26,6 @@ parser.add_argument('--name', type=str, default='default')
 parser.add_argument('--dump_every', type=int, default=1000)
 
 
-
 def get_config():
     conf = parser.parse_args()
 
