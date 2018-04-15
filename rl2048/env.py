@@ -1,10 +1,10 @@
+import math
 import os
 
 import numpy as np
 
 from . import config
 from .game import Game2048
-import math
 
 
 class Env2048(object):
@@ -31,15 +31,6 @@ class Env2048(object):
 
     def average_reward(self):
         return self.total_reward/self.steps
-
-    def process_state(self, state):
-
-        state = state.astype(np.float, copy=True)
-        pos_state = state[state > 0]
-        state[state > 0] = np.log2(pos_state)/11
-        state[state < 0] = -1
-
-        return state
 
     def execute(self, action):
 
@@ -98,11 +89,9 @@ class Env2048(object):
 
         if self.done or self.steps >= self.step_limit:
             self.done = True
-            return (self.process_state(self.empty_state.flatten()), reward,
-                    self.game.done)
+            return self.empty_state.flatten(), reward, self.game.done
         else:
-            return (self.process_state(new_board.flatten()), reward,
-                    self.game.done)
+            return new_board.flatten(), reward, self.game.done
 
 
 class KeyPressHander(object):

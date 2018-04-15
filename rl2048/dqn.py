@@ -8,8 +8,8 @@ import time
 from collections import namedtuple
 
 import numpy as np
-
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 from . import config, utils
@@ -48,6 +48,18 @@ def copy_data(var, array):
     var.data.copy_(array)
 
 
+def process_state(state):
+
+    state = np.array(state, dtype=np.float, copy=True)
+    positive_mask = state > 0
+    positive_states = state[positive_mask]
+
+    state[positive_mask] = np.log(positive_states)/11.0
+    state[np.logical_not(positive_mask)] = -1.0
+
+    return state
+
+
 class MLP(nn.Module):
 
     def __init__(self, input_size, output_size, num_hidden):
@@ -57,27 +69,27 @@ class MLP(nn.Module):
         self.modules = []
         self.num_hidden = num_hidden
 
-        self.linear1 = nn.Linear(input_size, self.num_hidden)
-        self.relu1 = nn.LeakyReLU(0.2, inplace=True)
-
-        self.linear2 = nn.Linear(num_hidden, self.num_hidden)
-        self.relu2 = nn.LeakyReLU(0.2, inplace=True)
-
-        self.linear3 = nn.Linear(num_hidden, self.num_hidden)
-        self.relu3 = nn.LeakyReLU(0.2, inplace=True)
-
-        self.linear4 = nn.Linear(num_hidden, self.num_hidden)
-        self.relu4 = nn.LeakyReLU(0.2, inplace=True)
-
-        self.output = nn.Linear(self.num_hidden, output_size)
+        self.net = nn.Sequential(
+            nn.Linear(input_size, self.num_hidden),
+            #nn.BatchNorm1d(self.num_hidden),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(self.num_hidden, self.num_hidden),
+            #nn.BatchNorm1d(self.num_hidden),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(self.num_hidden, self.num_hidden),
+            #nn.BatchNorm1d(self.num_hidden),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(self.num_hidden, output_size)
+        )
 
     def forward(self, state):
-        out1 = self.relu1(self.linear1(state))
-        out2 = self.relu2(self.linear2(out1))
-        #out3 = self.relu3(self.linear3(out2))
-        #out4 = self.relu4(self.linear4(out3))
 
-        return self.output(out2)
+        return self.net(state)
+
+
+def array_in_range(a, low, high):
+
+    return np.all(np.logical_and(a >= low, a <= high))
 
 
 class ExperineReplayBuffer(object):
@@ -129,8 +141,19 @@ class ExperineReplayBuffer(object):
             finished.append(step.done)
             next_states.append(step.next_state)
 
-        return (np.array(states), np.array(actions),
-                np.array(rewards), np.array(finished), np.array(next_states))
+        states = process_state(states)
+        actions = np.array(actions)
+        rewards = np.array(rewards)
+        finished = np.array(finished)
+        next_states = process_state(next_states)
+
+        assert array_in_range(states, -1, 1)
+        assert array_in_range(actions, 0, 3)
+        assert array_in_range(rewards, -1, 1)
+        assert array_in_range(finished, 0, 1)
+        assert array_in_range(next_states, -1, 1)
+
+        return states, actions, rewards, finished, next_states
 
 
 class DQN(object):
@@ -168,7 +191,7 @@ class DQN(object):
         self.state_batch.data.zero_()
         self.next_state_batch.data.zero_()
 
-        self.state = utils.variable((self.input_size, ), cuda=self.cuda,
+        self.state = utils.variable((1, self.input_size, ), cuda=self.cuda,
                                     type_='float')
 
         self.y_target = utils.variable((self.batch_size, ), cuda=self.cuda,
@@ -183,8 +206,7 @@ class DQN(object):
 
         # We optimize only the main network.
         self.net_main = copy.deepcopy(self.net_target)
-        self.optimizer = torch.optim.Adam(self.net_main.parameters(),
-                                          lr=0.0001)
+        self.optimizer = torch.optim.Adam(self.net_main.parameters(), 1e-4)
 
         self.criterion = nn.MSELoss()
 
@@ -198,18 +220,26 @@ class DQN(object):
     def random_action(self):
         return random.randint(0, self.num_actions - 1)
 
-    def predict_target_single(self, state):
+    def get_network(self, kind):
+        if kind == 'main':
+            net = self.net_main
+        elif kind == 'target':
+            net = self.net_target
+        else:
+            raise ValueError("Unrecognized network")
 
+        return net
+
+    def predict_action(self, state, kind):
+
+        state = state.reshape(1, -1)
         copy_data(self.state, state)
-        q = self.net_target(self.state)
-        _, index = torch.max(q, 0)
-        return index.data[0]
 
-    def predict_main_single(self, state):
+        net = self.get_network(kind)
+        net.eval()
 
-        copy_data(self.state, state)
-        q = self.net_main(self.state)
-        _, index = torch.max(q, 0)
+        q = net(self.state)
+        _, index = torch.max(q, 1)
         return index.data[0]
 
     def epsilon_greedy_main_action(self, state, epsilon):
@@ -219,7 +249,7 @@ class DQN(object):
         if num < epsilon:
             return self.random_action()
         else:
-            return self.predict_main_single(state)
+            return self.predict_action(state, 'main')
 
     def pretrain(self):
 
@@ -238,8 +268,8 @@ class DQN(object):
                 state = env_pretrain.reset()
         logging.info('Pretraining done')
 
-    def predict_target_batch(self, states):
-        q_values = self.net_target(states)
+    def predict_batch_maxq(self, states, kind):
+        q_values = self.get_network(kind)(states)
 
         values, _ = torch.max(q_values, dim=1)
         return values.data.cpu().numpy()
@@ -274,6 +304,7 @@ class DQN(object):
             state = next_state
             if env_train.done:
                 self.print_training_stats(episode_number, env_train)
+                avg_reward = env_train.average_reward()
                 state = env_train.reset()
                 episode_number += 1
 
@@ -290,7 +321,8 @@ class DQN(object):
 
                 update_time = time.time() - last_update_time
                 self.print_validation_stats(step, update_time)
-                logging.info(f"Step {step}: loss = {batch_loss}")
+                logging.info(f"Step {step}: loss = {batch_loss} "
+                             f"avg reward = {avg_reward}")
 
                 last_update_time = time.time()
 
@@ -321,8 +353,10 @@ class DQN(object):
         max_block = result['max_block']
         avg_block = result['avg_block']
         valid_frac = result['valid_frac']
+        avg_reward = result['avg_reward']
         logging.info(f"Validation {step} : max block = {max_block} "
-                     f"avg block = {avg_block} valid frac. = {valid_frac}")
+                     f"avg block = {avg_block} valid frac. = {valid_frac} "
+                     f"avg reward = {avg_reward}")
 
         self.stats.record('val', 'Max Block-step', result['max_block'], step)
         self.stats.record('val', 'Valid Fraction', result['valid_frac'], step)
@@ -336,9 +370,10 @@ class DQN(object):
         copy_data(self.next_state_batch, next_states)
         copy_data(self.action, actions)
 
+        self.net_main.train()
         # Get max q value of the next state from the target net
-        q_target_max_next_state = self.predict_target_batch(
-            self.next_state_batch)
+        q_target_max_next_state = self.predict_batch_maxq(
+            self.next_state_batch, 'target')
 
         # Compute y based on if the episode terminates
         y = np.where(done, rewards,
@@ -363,11 +398,13 @@ class DQN(object):
         blocks = []
         valid_steps = 0
         total_steps = 0
+        total_reward = 0
         for i in range(steps):
             state = env.reset()
             while not env.done:
-                action = self.predict_target_single(state)
-                state, _, _ = env.execute(action)
+                action = self.predict_action(state, 'target')
+                state, r, _ = env.execute(action)
+                total_reward += r
 
             valid_steps += env.valid_steps
             total_steps += env.steps
@@ -378,6 +415,7 @@ class DQN(object):
             'max_block': np.max(blocks),
             'avg_block': np.average(blocks.astype(np.float)),
             'valid_frac': valid_steps/total_steps,
+            'avg_reward': total_reward/total_steps
         }
 
 
