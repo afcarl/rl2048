@@ -9,7 +9,6 @@ from collections import namedtuple
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from . import config, utils
@@ -50,6 +49,7 @@ def copy_data(var, array):
 
 def process_state(state):
 
+    assert np.max(state) >= 2
     state = np.array(state, dtype=np.float, copy=True)
     positive_mask = state > 0
     positive_states = state[positive_mask]
@@ -71,13 +71,10 @@ class MLP(nn.Module):
 
         self.net = nn.Sequential(
             nn.Linear(input_size, self.num_hidden),
-            #nn.BatchNorm1d(self.num_hidden),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(self.num_hidden, self.num_hidden),
-            #nn.BatchNorm1d(self.num_hidden),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(self.num_hidden, self.num_hidden),
-            #nn.BatchNorm1d(self.num_hidden),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(self.num_hidden, output_size)
         )
@@ -206,7 +203,7 @@ class DQN(object):
 
         # We optimize only the main network.
         self.net_main = copy.deepcopy(self.net_target)
-        self.optimizer = torch.optim.Adam(self.net_main.parameters(), 1e-4)
+        self.optimizer = torch.optim.Adam(self.net_main.parameters())
 
         self.criterion = nn.MSELoss()
 
@@ -231,6 +228,8 @@ class DQN(object):
         return net
 
     def predict_action(self, state, kind):
+
+        assert array_in_range(state, -1, 1)
 
         state = state.reshape(1, -1)
         copy_data(self.state, state)
@@ -295,13 +294,13 @@ class DQN(object):
 
         for step in range(self.max_steps):
 
-            action = self.epsilon_greedy_main_action(state,
+            action = self.epsilon_greedy_main_action(process_state(state),
                                                      self.annealed_prob(step))
 
             next_state, reward, done = env_train.execute(action)
             self.exp_buffer.add(state, action, reward, done, next_state)
-
             state = next_state
+
             if env_train.done:
                 self.print_training_stats(episode_number, env_train)
                 avg_reward = env_train.average_reward()
@@ -344,9 +343,6 @@ class DQN(object):
                           env_train.average_reward(), episode_number)
 
     def print_validation_stats(self, step, update_time):
-        logging.info(
-            f"Step {step}: Updating target {update_time} secs "
-            "since last update")
 
         result = self.validate(self.validation_episodes)
 
@@ -402,7 +398,7 @@ class DQN(object):
         for i in range(steps):
             state = env.reset()
             while not env.done:
-                action = self.predict_action(state, 'target')
+                action = self.predict_action(process_state(state), 'target')
                 state, r, _ = env.execute(action)
                 total_reward += r
 
