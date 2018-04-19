@@ -47,19 +47,6 @@ def copy_data(var, array):
     var.data.copy_(array)
 
 
-def process_state(state):
-
-    assert np.max(state) >= 2
-    state = np.array(state, dtype=np.float, copy=True)
-    positive_mask = state > 0
-    positive_states = state[positive_mask]
-
-    state[positive_mask] = np.log(positive_states)/11.0
-    state[np.logical_not(positive_mask)] = -1.0
-
-    return state
-
-
 class MLP(nn.Module):
 
     def __init__(self, input_size, output_size, num_hidden):

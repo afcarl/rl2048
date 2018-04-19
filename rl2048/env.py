@@ -7,6 +7,22 @@ from . import config
 from .game import Game2048
 
 
+def process_state(state):
+
+    state = state.flatten()
+    if np.max(state) < 2:
+        raise ValueError(f"Invalid state with max. value{np.max(state)}")
+
+    state = np.array(state, dtype=np.float, copy=True)
+    positive_mask = state > 0
+    positive_states = state[positive_mask]
+
+    state[positive_mask] = np.log2(positive_states)/11.0
+    state[np.logical_not(positive_mask)] = -1.0
+
+    return state
+
+
 class Env2048(object):
 
     def __init__(self, step_limit=np.inf):
@@ -27,7 +43,7 @@ class Env2048(object):
         self.steps = 0
         self.valid_steps = 0
 
-        return self.game.board.flatten()
+        return process_state(self.game.board)
 
     def average_reward(self):
         return self.total_reward/self.steps
@@ -61,21 +77,12 @@ class Env2048(object):
         else:
             move_valid = False
 
-        if self.reward_mode == 'sparse':
-            if new_board.max() > board.max():
-                reward = 1
-            else:
-                reward = 0
-
-        elif self.reward_mode == 'dense':
+        if self.reward_mode == 'dense':
             if score != 0:
                 score = math.log(score, 2)
             reward = score/11.0
             if not move_valid:
                 reward = -1
-
-        elif self.reward_mode == 'stupid':
-            reward = action/4.0
 
         elif self.reward_mode == 'valid':
             if move_valid:
@@ -91,7 +98,7 @@ class Env2048(object):
             self.done = True
             return self.empty_state.flatten(), reward, self.game.done
         else:
-            return new_board.flatten(), reward, self.game.done
+            return process_state(self.game.board), reward, self.game.done
 
 
 class KeyPressHander(object):

@@ -27,7 +27,7 @@ parser.add_argument('--dump_every', type=int, default=1000)
 
 
 def get_config():
-    conf = parser.parse_args()
+    conf, _ = parser.parse_known_args()
 
     conf.action_map = {
         0: 'left',

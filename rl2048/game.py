@@ -71,7 +71,7 @@ class Game2048(object):
         self.reset()
 
     def reset(self):
-        self.board[:] = -1
+        self.board = np.zeros((4, 4), dtype=np.int) - 1
         self.put_random_new_number()
         self.put_random_new_number()
         self.done = False

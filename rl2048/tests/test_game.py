@@ -1,5 +1,3 @@
-import random
-
 import numpy as np
 from rl2048.game import (Game2048, board_down, board_left, board_right,
                          board_up, compress_left)
