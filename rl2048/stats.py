@@ -4,7 +4,7 @@ import sys
 
 class Stats:
 
-    def __init__(self, modes=['train', 'val']):
+    def __init__(self, modes=['train', 'valid']):
 
         self.modes = {}
         for mode in modes:

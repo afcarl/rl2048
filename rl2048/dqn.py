@@ -219,7 +219,7 @@ class DQN(object):
                                   batch_loss, self.num_steps)
                 self.stats.record('train', 'Avg-Reward',
                                   avg_reward, self.num_steps)
-                self.stats.record('train', 'Valid_fraction',
+                self.stats.record('train', 'Valid-Fraction',
                                   valid_frac, self.num_steps)
 
                 self.validate()
@@ -273,14 +273,13 @@ class DQN(object):
         valid_frac = valid_steps/total_steps
         avg_reward = total_reward/total_steps
 
-        self.stats.record('train', 'Avg-Reward',
+        self.stats.record('valid', 'Avg-Reward',
                           avg_reward, self.num_steps)
-        self.stats.record('train', 'Valid_fraction',
+        self.stats.record('valid', 'Valid-Fraction',
                           valid_frac, self.num_steps)
         logging.info(f"Valid {self.num_steps}: "
                      f"avg reward = {avg_reward:.2f} "
                      f"valid frac. = {valid_frac:.2f}")
- 
 
 
 pprint.pprint(vars(config.get_config()), indent=2)
