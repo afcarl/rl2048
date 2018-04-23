@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import pytest
 from rl2048.env import Env2048, process_state
+from rl2048.game import board_print
 
 sys.argv = []
 
@@ -55,8 +56,9 @@ def test_no_move(reward_mode):
         assert env.game.done
         np.testing.assert_almost_equal(state, 0)
 
-        with pytest.raises(ValueError):
-            env.execute(0)
+        for i in range(4):
+            with pytest.raises(ValueError):
+                env.execute(i)
 
 
 @pytest.mark.parametrize('reward_mode', ['dense', 'valid'])
@@ -91,13 +93,18 @@ def test_all_collapse(reward_mode):
 
     env.execute(0)
     env.game.board[:, 2:] = -1
+    board_print(env.game.board)
 
     env.execute(2)
-    env.game.board[2:, 2:] = -1
+    env.game.board[2:, :] = env.game.board[:, 2:] = -1
+    board_print(env.game.board)
 
     env.execute(0)
-    env.game.board[2:, 1:] = -1
+    env.game.board[2:, 1:] = env.game.board[1:, 2:] = -1
+    board_print(env.game.board)
+
     state, _, _ = env.execute(2)
+    board_print(env.game.board)
 
     assert pytest.approx(state[0]) == 5.0/11
 
@@ -137,3 +144,23 @@ def test_reward_valid():
             break
 
     assert pytest.approx(valid_moves/(i + 1)) == env.average_reward()
+
+
+@pytest.mark.parametrize('reward_mode', ['dense', 'valid'])
+def test_reward_sum(reward_mode):
+
+    env = Env2048()
+    env.reward_mode = reward_mode
+
+    rng = np.random.RandomState(42)
+
+    for i in range(100):
+        a = rng.randint(0, 4)
+
+        before = env.game.board[env.game.board > 0].sum()
+        env.execute(a)
+        after = env.game.board[env.game.board > 0].sum()
+
+        assert after - before in [0, 2, 4]
+        if env.done:
+            break

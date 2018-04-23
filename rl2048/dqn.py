@@ -5,7 +5,6 @@ import pickle
 import pprint
 import random
 import time
-from collections import namedtuple
 
 import numpy as np
 import torch
@@ -15,8 +14,6 @@ from . import config, utils
 from .env import Env2048
 from .game import board_print
 from .stats import Stats
-
-Step = namedtuple('Step', ['state', 'action', 'reward', 'done', 'next_state'])
 
 if config.get_config().debug:
     level = logging.DEBUG
@@ -74,70 +71,6 @@ class MLP(nn.Module):
 def array_in_range(a, low, high):
 
     return np.all(np.logical_and(a >= low, a <= high))
-
-
-class ExperineReplayBuffer(object):
-
-    def __init__(self):
-        conf = config.get_config()
-
-        self.size = conf.exp_buffer_size
-        self.buffer_ = []
-        self.action_map = conf.action_map
-
-    def add(self, state, action, reward, done, next_state):
-
-        step = Step(state=state, action=action, reward=reward, done=done,
-                    next_state=next_state)
-        self.buffer_.append(step)
-
-        if len(self.buffer_) > self.size:
-            self.buffer_.pop(0)
-
-    def print_(self):
-
-        for step in self.buffer_:
-            state = step.state.reshape(4, 4)
-            action = self.action_map[step.action]
-            reward = step.reward
-            next_state = step.next_state.reshape(4, 4)
-
-            print('-'*20)
-            board_print(state)
-            print(action, reward)
-            board_print(next_state)
-            print()
-
-    def sample(self, batch_size):
-
-        indices = np.random.randint(0, len(self.buffer_), size=batch_size)
-
-        states = []
-        rewards = []
-        actions = []
-        next_states = []
-        finished = []
-        for idx in indices:
-            step = self.buffer_[idx]
-            states.append(step.state)
-            rewards.append(step.reward)
-            actions.append(step.action)
-            finished.append(step.done)
-            next_states.append(step.next_state)
-
-        states = process_state(states)
-        actions = np.array(actions)
-        rewards = np.array(rewards)
-        finished = np.array(finished)
-        next_states = process_state(next_states)
-
-        assert array_in_range(states, -1, 1)
-        assert array_in_range(actions, 0, 3)
-        assert array_in_range(rewards, -1, 1)
-        assert array_in_range(finished, 0, 1)
-        assert array_in_range(next_states, -1, 1)
-
-        return states, actions, rewards, finished, next_states
 
 
 class DQN(object):
