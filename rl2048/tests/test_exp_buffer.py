@@ -1,6 +1,9 @@
+import sys
+
 import numpy as np
-import pytest
 from rl2048.exp_buffer import ExperineReplayBuffer
+
+sys.argv = []
 
 
 def test_sample():
@@ -36,9 +39,21 @@ def test_random_stats():
     for i in range(10):
         exp_buffer.add(-1, -1, -1, -1, i)
 
-    total = 0
     for i in range(100):
         _, _, _, _, finished = exp_buffer.sample(100)
-        total += finished.sum()
+        values = set(np.unique(finished))
+        assert values <= set(range(5, 10))
 
-    assert pytest.approx(sum(range(5, 10))/5, rel=0.1) == (total/(10000))
+
+def test_less_samples():
+
+    exp_buffer = ExperineReplayBuffer()
+    exp_buffer.size = 100
+
+    for i in range(10):
+        exp_buffer.add(-1, -1, -1, -1, i)
+
+    for i in range(100):
+        _, _, _, _, finished = exp_buffer.sample(100)
+        values = set(np.unique(finished))
+        assert values <= set(range(10))

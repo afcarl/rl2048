@@ -11,7 +11,7 @@ parser.add_argument('--seed', type=int, default=None)
 parser.add_argument('--hidden_units', type=int, default=512)
 parser.add_argument('--cuda', type=bool, default=False)
 parser.add_argument('--batch_size', type=int, default=128)
-parser.add_argument('--max_steps', type=int, default=10**8)
+parser.add_argument('--max_episodes', type=int, default=10**6)
 parser.add_argument('--start_random', type=float, default=1.0)
 parser.add_argument('--end_random', type=float, default=0.1)
 parser.add_argument('--random_anneal_steps', type=int, default=10**6)
@@ -27,7 +27,7 @@ parser.add_argument('--dump_every', type=int, default=1000)
 
 
 def get_config():
-    conf, _ = parser.parse_known_args()
+    conf = parser.parse_args()
 
     conf.action_map = {
         0: 'left',

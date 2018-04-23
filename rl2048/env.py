@@ -86,9 +86,9 @@ class Env2048(object):
 
         elif self.reward_mode == 'valid':
             if move_valid:
-                reward = 1
+                reward = 1.0
             else:
-                reward = -1
+                reward = -1.0
 
         self.done = self.game.done
         self.total_reward += reward

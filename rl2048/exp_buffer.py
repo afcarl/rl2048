@@ -13,20 +13,22 @@ class ExperineReplayBuffer(object):
         conf = config.get_config()
 
         self.size = conf.exp_buffer_size
-        self.buffer_ = []
+        self.buffer_ = [None for _ in range(self.size)]
+        self.index = 0
+        self.valid_samples = 0
 
     def add(self, state, action, reward, done, next_state):
 
         step = Step(state=state, action=action, reward=reward, done=done,
                     next_state=next_state)
-        self.buffer_.append(step)
+        self.buffer_[self.index] = step
 
-        if len(self.buffer_) > self.size:
-            self.buffer_.pop(0)
+        self.index = (self.index + 1) % self.size
+        self.valid_samples = min(self.valid_samples + 1, self.size)
 
     def sample(self, batch_size):
 
-        indices = np.random.randint(0, len(self.buffer_), size=batch_size)
+        indices = np.random.randint(0, self.valid_samples, size=batch_size)
 
         states = []
         rewards = []
@@ -35,6 +37,7 @@ class ExperineReplayBuffer(object):
         finished = []
         for idx in indices:
             step = self.buffer_[idx]
+
             states.append(step.state)
             rewards.append(step.reward)
             actions.append(step.action)
