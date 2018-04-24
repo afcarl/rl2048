@@ -34,15 +34,15 @@ def dump_file(filename, obj):
 
 class MLP(nn.Module):
 
-    def __init__(self, input_size, output_size, num_hidden):
+    def __init__(self, input_shape, output_size, num_hidden):
 
         super(MLP, self).__init__()
 
-        self.modules = []
         self.num_hidden = num_hidden
 
+        self.input_size = int(np.prod(input_shape))
         self.net = nn.Sequential(
-            nn.Linear(input_size, self.num_hidden),
+            nn.Linear(self.input_size, self.num_hidden),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(self.num_hidden, self.num_hidden),
             nn.LeakyReLU(0.2, inplace=True),
@@ -53,7 +53,33 @@ class MLP(nn.Module):
 
     def forward(self, state):
 
+        state = state.view(-1, self.input_size)
         return self.net(state)
+
+
+class ConvNet(nn.Module):
+
+    def __init__(self, input_shape, output_size, num_hidden):
+
+        super(ConvNet, self).__init__()
+
+        self.net = nn.Sequential(
+            nn.Conv2d(1, num_hidden, 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(num_hidden, num_hidden, 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(num_hidden, num_hidden, 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(num_hidden, 4, 1),
+        )
+
+    def forward(self, state):
+
+        state = state.unsqueeze(1)
+        out = self.net(state)
+        out = out.squeeze(3).squeeze(2)
+
+        return out
 
 
 class DQN(object):
@@ -63,7 +89,6 @@ class DQN(object):
         self.pretraining_steps = conf.pretraining_steps
         self.num_actions = len(conf.action_map)
         self.hidden_units = conf.hidden_units
-        self.input_size = 16
         self.cuda = torch.cuda.is_available()
         self.batch_size = conf.batch_size
         self.max_episodes = conf.max_episodes
@@ -82,18 +107,17 @@ class DQN(object):
         self.exp_buffer = ExperineReplayBuffer()
 
         # Variables
-        self.state_batch = utils.variable(
-            (self.batch_size, self.input_size),
-            cuda=self.cuda, type_='float')
+        self.state_batch = utils.variable((self.batch_size, 4, 4),
+                                          cuda=self.cuda, type_='float')
 
         self.next_state_batch = utils.variable(
-            (self.batch_size, self.input_size),
+            (self.batch_size, 4, 4),
             cuda=self.cuda, type_='float')
 
         self.state_batch.data.zero_()
         self.next_state_batch.data.zero_()
 
-        self.state = utils.variable((1, self.input_size, ), cuda=self.cuda,
+        self.state = utils.variable((1, 4, 4), cuda=self.cuda,
                                     type_='float')
 
         self.y_target = utils.variable((self.batch_size, ), cuda=self.cuda,
@@ -101,8 +125,7 @@ class DQN(object):
         self.action = utils.variable((self.batch_size, ), cuda=self.cuda,
                                      type_='long')
 
-        self.net_main = MLP(self.input_size, self.num_actions,
-                            conf.hidden_units)
+        self.net_main = MLP((4, 4), self.num_actions, conf.hidden_units)
         if self.cuda:
             self.net_main.cuda()
 
@@ -125,7 +148,6 @@ class DQN(object):
         assert np.max(state) <= 1.0
         assert np.min(state) >= -1.0
 
-        state = state.reshape(1, -1)
         copy_data(self.state, state)
 
         self.net_main.eval()
@@ -209,23 +231,19 @@ class DQN(object):
                 batch_loss = self.sample_and_train_batch()
 
             if self.should_update():
-                avg_reward = env_train.average_reward()
-                valid_frac = float(env_train.valid_steps)/env_train.steps
-                logging.info(f"Train {self.num_steps}: "
-                             f"avg reward = {avg_reward:.2f} "
-                             f"valid frac. = {valid_frac:.2f} "
-                             f"loss = {batch_loss:.2f}")
-                self.stats.record('train', 'Loss',
-                                  batch_loss, self.num_steps)
-                self.stats.record('train', 'Avg-Reward',
-                                  avg_reward, self.num_steps)
-                self.stats.record('train', 'Valid-Fraction',
-                                  valid_frac, self.num_steps)
-
                 self.validate()
 
             if self.num_steps % self.dump_every == 0:
                 dump_file(self.stats_file, self.stats)
+
+        avg_reward = env_train.average_reward()
+        valid_frac = float(env_train.valid_steps)/env_train.steps
+        self.stats.record('train', 'Loss',
+                          batch_loss, self.num_steps)
+        self.stats.record('train', 'Avg-Reward',
+                          avg_reward, self.num_steps)
+        self.stats.record('train', 'Valid-Fraction',
+                          valid_frac, self.num_steps)
 
     def sample_and_train_batch(self):
         self.net_main.zero_grad()

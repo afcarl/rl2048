@@ -9,7 +9,6 @@ from .game import Game2048
 
 def process_state(state):
 
-    state = state.flatten()
     if np.max(state) < 2:
         raise ValueError(f"Invalid state with max. value{np.max(state)}")
 
@@ -30,7 +29,7 @@ class Env2048(object):
         conf = config.get_config()
         self.game = Game2048()
         self.action_map = conf.action_map
-        self.empty_state = np.zeros(16, dtype=np.int).flatten()
+        self.empty_state = np.zeros((4, 4), dtype=np.int)
         self.step_limit = step_limit
         self.reward_mode = conf.reward_mode
 
@@ -96,7 +95,7 @@ class Env2048(object):
 
         if self.done or self.steps >= self.step_limit:
             self.done = True
-            return self.empty_state.flatten(), reward, self.game.done
+            return self.empty_state, reward, self.game.done
         else:
             return process_state(self.game.board), reward, self.game.done
 

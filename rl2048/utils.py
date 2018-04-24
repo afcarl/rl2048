@@ -16,6 +16,7 @@ def variable(shape, cuda=False, type_='float'):
 
 
 def copy_data(var, array):
+
     if isinstance(array, np.ndarray):
         if isinstance(var.data, torch.FloatTensor):
             tensor = torch.FloatTensor(array)

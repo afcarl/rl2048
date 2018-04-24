@@ -40,7 +40,7 @@ def test_process_state():
          [7./11, 8./11,    -1, 7./11]]
     )
 
-    np.testing.assert_almost_equal(process_state(a), b.flatten())
+    np.testing.assert_almost_equal(process_state(a), b)
 
 
 @pytest.mark.parametrize('reward_mode', ['dense', 'valid'])
@@ -94,20 +94,16 @@ def test_all_collapse(reward_mode):
 
     env.execute(0)
     env.game.board[:, 2:] = -1
-    board_print(env.game.board)
 
     env.execute(2)
     env.game.board[2:, :] = env.game.board[:, 2:] = -1
-    board_print(env.game.board)
 
     env.execute(0)
     env.game.board[2:, 1:] = env.game.board[1:, 2:] = -1
-    board_print(env.game.board)
 
     state, _, _ = env.execute(2)
-    board_print(env.game.board)
 
-    assert pytest.approx(state[0]) == 5.0/11
+    assert pytest.approx(state[0][0]) == 5.0/11
 
     if reward_mode == 'valid':
         assert pytest.approx(1) == env.average_reward()
