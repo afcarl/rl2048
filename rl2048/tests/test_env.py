@@ -1,10 +1,9 @@
 import sys
 
 import numpy as np
+
 import pytest
-import torch
 from rl2048.env import Env2048, process_state
-from rl2048.game import board_print
 
 sys.argv = []
 

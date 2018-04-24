@@ -50,4 +50,7 @@ class ExperineReplayBuffer(object):
         finished = np.array(finished)
         next_states = np.array(next_states)
 
+        assert np.max(states) <= 1
+        assert np.max(next_states) <= 1
+
         return states, actions, rewards, finished, next_states

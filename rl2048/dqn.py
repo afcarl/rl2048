@@ -4,9 +4,9 @@ import os
 import pickle
 import pprint
 import random
-import time
 
 import numpy as np
+
 import torch
 from torch import nn
 
@@ -126,8 +126,11 @@ class DQN(object):
                                      type_='long')
 
         self.net_main = ConvNet((4, 4), self.num_actions, conf.hidden_units)
+        self.net_target = copy.deepcopy(self.net_main)
+
         if self.cuda:
-            self.net_main.cuda()
+            self.net_main = self.net_main.cuda()
+            self.net_target = self.net_target.cuda()
 
         self.optimizer = torch.optim.Adam(self.net_main.parameters())
 
@@ -143,18 +146,34 @@ class DQN(object):
     def random_action(self):
         return random.randint(0, self.num_actions - 1)
 
-    def predict_action(self, state):
+    def get_network(self, kind):
+
+        if kind == 'main':
+            return self.net_main
+        elif kind == 'target':
+            return self.net_target
+        else:
+            ValueError(f"No net of kind:{kind}")
+
+    def predict_action(self, state, kind):
 
         assert np.max(state) <= 1.0
         assert np.min(state) >= -1.0
 
         copy_data(self.state, state)
 
-        self.net_main.eval()
+        net = self.get_network(kind)
+        net.eval()
 
-        q = self.net_main(self.state)
+        q = net(self.state)
         _, index = torch.max(q, 1)
         return index.data[0]
+
+    def predict_target_maxq(self, states):
+        q_values = self.net_target(states)
+
+        values, _ = torch.max(q_values, dim=1)
+        return values.data.cpu().numpy()
 
     def epsilon_greedy_main_action(self, state, epsilon):
 
@@ -163,7 +182,7 @@ class DQN(object):
         if num < epsilon:
             return self.random_action()
         else:
-            return self.predict_action(state)
+            return self.predict_action(state, 'main')
 
     def pretrain(self):
 
@@ -182,12 +201,6 @@ class DQN(object):
                 state = env_pretrain.reset()
 
         logging.info('Pretraining done')
-
-    def predict_batch_maxq(self, states):
-        q_values = self.net_main(states)
-
-        values, _ = torch.max(q_values, dim=1)
-        return values.data.cpu().numpy()
 
     def should_train(self):
 
@@ -231,6 +244,7 @@ class DQN(object):
                 batch_loss = self.sample_and_train_batch()
 
             if self.should_update():
+                self.net_target = copy.deepcopy(self.net_main)
                 self.validate()
 
             if self.num_steps % self.dump_every == 0:
@@ -242,15 +256,17 @@ class DQN(object):
         logging.debug(f"Episode {self.num_episodes}: "
                       f"avg reward = {avg_reward:.2f} "
                       f"valid frac. = {valid_frac:.2f}")
-        self.stats.record('train', 'Loss',
-                          batch_loss, self.num_steps)
-        self.stats.record('train', 'Avg-Reward',
-                          avg_reward, self.num_steps)
+
+        self.stats.record('train', 'Loss', batch_loss, self.num_steps)
+        self.stats.record('train', 'Avg-Reward', avg_reward, self.num_steps)
         self.stats.record('train', 'Valid-Fraction',
                           valid_frac, self.num_steps)
+        self.stats.record('train', 'Max-Block',
+                          np.max(env_train.game.board), self.num_steps)
 
     def sample_and_train_batch(self):
         self.net_main.zero_grad()
+        self.net_main.train()
 
         results = self.exp_buffer.sample(self.batch_size)
         states, actions, rewards, done, next_states = results
@@ -258,9 +274,9 @@ class DQN(object):
         copy_data(self.next_state_batch, next_states)
         copy_data(self.action, actions)
 
-        self.net_main.train()
-
-        copy_data(self.y_target, rewards)
+        target_max = self.predict_target_maxq(self.next_state_batch)
+        y = np.where(done, rewards, rewards + target_max*self.gamma)
+        copy_data(self.y_target, y)
 
         q_s = self.net_main(self.state_batch)
         q_s_a = action_select(q_s, self.action)
@@ -282,7 +298,7 @@ class DQN(object):
         for i in range(self.validation_episodes):
             state = env.reset()
             while not env.done:
-                action = self.predict_action(state)
+                action = self.predict_action(state, 'target')
                 state, r, _ = env.execute(action)
                 total_reward += r
 
@@ -294,14 +310,16 @@ class DQN(object):
 
         valid_frac = valid_steps/total_steps
         avg_reward = total_reward/total_steps
+        max_block = np.average(blocks)
 
-        self.stats.record('valid', 'Avg-Reward',
-                          avg_reward, self.num_steps)
-        self.stats.record('valid', 'Valid-Fraction',
-                          valid_frac, self.num_steps)
+        self.stats.record('valid', 'Avg-Reward', avg_reward, self.num_steps)
+        self.stats.record('valid', 'Valid-Fraction', valid_frac,
+                          self.num_steps)
+        self.stats.record('valid', 'Max-Block', max_block, self.num_steps)
         logging.info(f"Valid {self.num_steps}: "
                      f"avg reward = {avg_reward:.2f} "
-                     f"valid frac. = {valid_frac:.2f}")
+                     f"valid frac. = {valid_frac:.2f} "
+                     f"max block = {max_block}")
 
 
 pprint.pprint(vars(config.get_config()), indent=2)
