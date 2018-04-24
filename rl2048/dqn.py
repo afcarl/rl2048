@@ -125,7 +125,7 @@ class DQN(object):
         self.action = utils.variable((self.batch_size, ), cuda=self.cuda,
                                      type_='long')
 
-        self.net_main = MLP((4, 4), self.num_actions, conf.hidden_units)
+        self.net_main = ConvNet((4, 4), self.num_actions, conf.hidden_units)
         if self.cuda:
             self.net_main.cuda()
 
@@ -238,6 +238,10 @@ class DQN(object):
 
         avg_reward = env_train.average_reward()
         valid_frac = float(env_train.valid_steps)/env_train.steps
+
+        logging.debug(f"Episode {self.num_episodes}: "
+                      f"avg reward = {avg_reward:.2f} "
+                      f"valid frac. = {valid_frac:.2f}")
         self.stats.record('train', 'Loss',
                           batch_loss, self.num_steps)
         self.stats.record('train', 'Avg-Reward',
