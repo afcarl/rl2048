@@ -18,9 +18,9 @@ def variable(shape, cuda=False, type_='float'):
 def copy_data(var, array):
 
     if isinstance(array, np.ndarray):
-        if isinstance(var.data, [torch.FloatTensor, torch.cuda.FloatTensor]):
+        if isinstance(var.data, (torch.FloatTensor, torch.cuda.FloatTensor)):
             tensor = torch.FloatTensor(array)
-        elif isinstance(var.data, [torch.LongTensor, torch.cuda.LongTensor]):
+        elif isinstance(var.data, (torch.LongTensor, torch.cuda.LongTensor)):
             tensor = torch.LongTensor(array)
         else:
             raise ValueError(f"Unknown variable tensor type {type(var.data)}.")
