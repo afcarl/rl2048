@@ -104,7 +104,7 @@ class DQN(object):
         self.num_steps = 0
         self.num_episodes = 0
 
-        self.exp_buffer = ResampledBuffer()
+        self.exp_buffer = ExperineReplayBuffer()
 
         # Variables
         self.state_batch = utils.variable((self.batch_size, 4, 4),

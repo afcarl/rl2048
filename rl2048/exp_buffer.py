@@ -85,7 +85,7 @@ class ExperineReplayBuffer(object):
         neg_count = np.sum(rewards < 0)
         pos_rewards = rewards[rewards >= 0]
 
-        counts, edges = np.histogram(pos_rewards, n, (0, 1))
+        counts, edges = np.histogram(pos_rewards, n)
         reward_dict = OrderedDict([('-1', int(neg_count))])
         for c, e in zip(counts, edges):
             reward_dict[round(e, 2)] = int(c)

@@ -89,6 +89,15 @@ class Env2048(object):
             else:
                 reward = -1.0
 
+        elif self.reward_mode == 'normalized':
+            if score == 0:
+                reward = 0
+            else:
+                reward = math.log(score/np.max(new_board))
+
+            if not move_valid:
+                reward = -1
+
         self.done = self.game.done
         self.total_reward += reward
         self.steps += 1
