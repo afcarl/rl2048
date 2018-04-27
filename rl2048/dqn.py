@@ -12,7 +12,7 @@ from torch import nn
 
 from . import config, utils
 from .env import Env2048
-from .exp_buffer import ExperineReplayBuffer
+from .exp_buffer import ExperineReplayBuffer, ResampledBuffer
 from .stats import Stats
 from .utils import action_select, copy_data
 
@@ -104,7 +104,7 @@ class DQN(object):
         self.num_steps = 0
         self.num_episodes = 0
 
-        self.exp_buffer = ExperineReplayBuffer()
+        self.exp_buffer = ResampledBuffer()
 
         # Variables
         self.state_batch = utils.variable((self.batch_size, 4, 4),
