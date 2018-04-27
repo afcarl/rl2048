@@ -134,7 +134,7 @@ class DQN(object):
 
         self.optimizer = torch.optim.Adam(self.net_main.parameters())
 
-        self.criterion = nn.MSELoss()
+        self.criterion = nn.SmoothL1Loss()
 
         log_dir = os.path.join('logs', conf.name)
         os.makedirs(log_dir, exist_ok=True)
@@ -204,7 +204,7 @@ class DQN(object):
 
     def should_train(self):
 
-        return (self.num_steps % self.train_every) == 0 and self.num_steps > 0
+        return (self.num_steps % self.train_every) == 0
 
     def should_update(self):
 
@@ -222,6 +222,7 @@ class DQN(object):
         env_train = Env2048(self.episode_step_limit)
         self.stats = Stats()
         logging.info('Starting training')
+        self.validate()
 
         for self.num_episodes in range(self.max_episodes):
 
@@ -295,6 +296,8 @@ class DQN(object):
         valid_steps = 0
         total_steps = 0
         total_reward = 0
+
+        self.exp_buffer.print_stats()
         for i in range(self.validation_episodes):
             state = env.reset()
             while not env.done:

@@ -1,4 +1,6 @@
-from collections import namedtuple
+import json
+import logging
+from collections import OrderedDict, namedtuple
 
 import numpy as np
 
@@ -54,3 +56,22 @@ class ExperineReplayBuffer(object):
         assert np.max(next_states) <= 1
 
         return states, actions, rewards, finished, next_states
+
+    def print_stats(self):
+
+        n = 10
+        rewards = {}
+        state_max = {}
+        rewards = np.array([step.reward for step
+                            in self.buffer_[:self.valid_samples]])
+        neg_count = np.sum(rewards < 0)
+        pos_rewards = rewards[rewards >= 0]
+
+        counts, edges = np.histogram(pos_rewards, n, (0, 1))
+        reward_dict = OrderedDict([('-1', int(neg_count))])
+        for c, e in zip(counts, edges):
+            reward_dict[round(e, 2)] = int(c)
+
+        reward_str = json.dumps(reward_dict, indent=2)
+        return logging.info(f"size = {self.valid_samples} "
+                            f"Rewards {reward_str}")
