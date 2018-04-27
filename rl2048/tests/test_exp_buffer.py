@@ -10,7 +10,7 @@ sys.argv = []
 def test_sample():
 
     exp_buffer = ExperineReplayBuffer()
-    exp_buffer.size = 10
+    exp_buffer.fifo.size = 10
 
     for i in range(11):
         exp_buffer.add(i/11, -1, -1, -1, -1)
@@ -22,7 +22,7 @@ def test_sample():
 def test_single():
 
     exp_buffer = ExperineReplayBuffer()
-    exp_buffer.size = 1
+    exp_buffer.fifo.size = 1
 
     exp_buffer.add(0.5, -1, -1, -1, -1)
     exp_buffer.add(1.0, -1, -1, -1, -1)
@@ -35,7 +35,7 @@ def test_single():
 def test_random_stats():
 
     exp_buffer = ExperineReplayBuffer()
-    exp_buffer.size = 5
+    exp_buffer.fifo.size = 5
 
     for i in range(10):
         exp_buffer.add(-1, -1, -1, -1, i/10.0)
@@ -49,7 +49,7 @@ def test_random_stats():
 def test_less_samples():
 
     exp_buffer = ExperineReplayBuffer()
-    exp_buffer.size = 100
+    exp_buffer.fifo.size = 100
 
     for i in range(10):
         exp_buffer.add(-1, -1, -1, -1, i/10.0)
