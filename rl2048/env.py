@@ -93,7 +93,7 @@ class Env2048(object):
             if score == 0:
                 reward = 0
             else:
-                reward = math.log(score/np.max(new_board))
+                reward = score/np.max(new_board)
 
             if not move_valid:
                 reward = -1
