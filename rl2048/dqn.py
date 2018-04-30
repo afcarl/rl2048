@@ -247,6 +247,7 @@ class DQN(object):
         valid_steps = 0
         total_steps = 0
         total_reward = 0
+        total_score = 0
 
         self.exp_buffer.print_stats()
         for i in range(self.validation_episodes):
@@ -256,6 +257,7 @@ class DQN(object):
                 state, r, _ = env.execute(action)
                 total_reward += r
 
+            total_score += env.total_score
             valid_steps += env.valid_steps
             total_steps += env.steps
             blocks.append(np.max(env.game.board))
@@ -265,15 +267,18 @@ class DQN(object):
         valid_frac = valid_steps/total_steps
         avg_reward = total_reward/total_steps
         max_block = np.average(blocks)
+        total_score = np.average(total_score)
 
         self.stats.record('valid', 'Avg-Reward', avg_reward, self.num_steps)
         self.stats.record('valid', 'Valid-Fraction', valid_frac,
                           self.num_steps)
+        self.stats.record('valid', 'Total-Score', total_score, self.num_steps)
         self.stats.record('valid', 'Max-Block', max_block, self.num_steps)
         logging.info(f"Valid {self.num_steps}: "
                      f"avg reward = {avg_reward:.2f} "
                      f"valid frac. = {valid_frac:.2f} "
-                     f"max block = {max_block}")
+                     f"max block = {max_block} "
+                     f"total score = {total_score}")
 
 
 pprint.pprint(vars(config.get_config()), indent=2)

@@ -41,6 +41,7 @@ class Env2048(object):
         self.total_reward = 0
         self.steps = 0
         self.valid_steps = 0
+        self.total_score = 0
 
         return process_state(self.game.board)
 
@@ -76,6 +77,7 @@ class Env2048(object):
         else:
             move_valid = False
 
+        self.total_score += score
         if self.reward_mode == 'dense':
             if score != 0:
                 score = math.log(score, 2)
